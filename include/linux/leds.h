@@ -30,7 +30,11 @@ enum led_brightness {
 	LED_OFF		= 0,
 	LED_ON		= 1,
 	LED_HALF	= 127,
+#ifdef CONFIG_ZTEMT_LED_BRIGHTNESS_CTL
+	LED_FULL	= 100,
+#else
 	LED_FULL	= 255,
+#endif
 };
 
 struct led_classdev {
