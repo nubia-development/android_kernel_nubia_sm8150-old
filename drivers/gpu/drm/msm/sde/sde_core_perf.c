@@ -1,4 +1,4 @@
-/* Copyright (c) 2016-2019, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2016-2017, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -214,7 +214,6 @@ int sde_core_perf_crtc_check(struct drm_crtc *crtc,
 		SDE_ERROR("invalid parameters\n");
 		return 0;
 	}
-
 	sde_cstate = to_sde_crtc_state(state);
 
 	/* obtain new values */
@@ -826,7 +825,9 @@ int sde_core_perf_init(struct sde_core_perf *perf,
 		struct sde_power_handle *phandle,
 		struct sde_power_client *pclient,
 		char *clk_name)
-{
+{	
+	struct sde_perf_cfg *cfg;
+
 	if (!perf || !dev || !catalog || !phandle || !pclient || !clk_name) {
 		SDE_ERROR("invalid parameters\n");
 		return -EINVAL;
@@ -855,7 +856,11 @@ int sde_core_perf_init(struct sde_core_perf *perf,
 		SDE_DEBUG("optional max core clk rate, use default\n");
 		perf->max_core_clk_rate = SDE_PERF_DEFAULT_MAX_CORE_CLK_RATE;
 	}
-
+	
+	cfg = &perf->catalog->perf;
+	perf->perf_tune.min_core_clk = perf->max_core_clk_rate;
+	perf->perf_tune.min_bus_vote = (u64) cfg->max_bw_high * 1000;
+	perf->perf_tune.mode = SDE_PERF_MODE_MINIMUM;
 	return 0;
 
 err:

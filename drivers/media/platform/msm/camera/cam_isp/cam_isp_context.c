@@ -27,7 +27,7 @@
 #include "cam_isp_context.h"
 #include "cam_common_util.h"
 
-static const char isp_dev_name[] = "cam-isp";
+static const char isp_dev_name[] = "isp";
 
 #define INC_STATE_MONITOR_HEAD(head) \
 	(atomic64_add_return(1, head) % \
@@ -104,7 +104,8 @@ static void __cam_isp_ctx_dump_state_monitor_array(
 	uint64_t index;
 
 	state_head = atomic64_read(&ctx_isp->state_monitor_head);
-	CAM_ERR_RATE_LIMIT(CAM_ISP,
+       // ZTEMT: fuyipeng modify for log
+	CAM_DBG(CAM_ISP,
 		"Dumping state information for preceding requests");
 
 	for (i = CAM_ISP_CTX_STATE_MONITOR_MAX_ENTRIES - 1; i >= 0;
@@ -112,7 +113,8 @@ static void __cam_isp_ctx_dump_state_monitor_array(
 		index = (((state_head - i) +
 			CAM_ISP_CTX_STATE_MONITOR_MAX_ENTRIES) %
 			CAM_ISP_CTX_STATE_MONITOR_MAX_ENTRIES);
-		CAM_ERR_RATE_LIMIT(CAM_ISP,
+             // ZTEMT: fuyipeng modify for log
+		CAM_DBG(CAM_ISP,
 		"time[0x%llx] req_id[%u] state[%s] evt_type[%s]",
 		ctx_isp->cam_isp_ctx_state_monitor[index].evt_time_stamp,
 		ctx_isp->cam_isp_ctx_state_monitor[index].req_id,
@@ -2541,8 +2543,6 @@ static int __cam_isp_ctx_release_dev_in_top_state(struct cam_context *ctx,
 	ctx_isp->reported_req_id = 0;
 	ctx_isp->hw_acquired = false;
 	ctx_isp->init_received = false;
-	ctx_isp->rdi_only_context = false;
-	ctx_isp->split_acquire = false;
 
 	/*
 	 * Ideally, we should never have any active request here.
@@ -3172,7 +3172,7 @@ static int __cam_isp_ctx_start_dev_in_ready(struct cam_context *ctx,
 	ctx_isp->reported_req_id = 0;
 	ctx_isp->substate_activated = ctx_isp->rdi_only_context ?
 		CAM_ISP_CTX_ACTIVATED_APPLIED :
-		(req_isp->num_fence_map_out) ? CAM_ISP_CTX_ACTIVATED_EPOCH :
+		(req_isp->num_fence_map_out) ? CAM_ISP_CTX_ACTIVATED_APPLIED :
 		CAM_ISP_CTX_ACTIVATED_SOF;
 
 	/*
@@ -3194,13 +3194,8 @@ static int __cam_isp_ctx_start_dev_in_ready(struct cam_context *ctx,
 	CAM_DBG(CAM_ISP, "start device success ctx %u", ctx->ctx_id);
 
 	list_del_init(&req->list);
+	list_add_tail(&req->list, &ctx->wait_req_list);
 
-	if (req_isp->num_fence_map_out) {
-		list_add_tail(&req->list, &ctx->active_req_list);
-		ctx_isp->active_req_cnt++;
-	} else {
-		list_add_tail(&req->list, &ctx->wait_req_list);
-	}
 end:
 	return rc;
 }

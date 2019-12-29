@@ -172,6 +172,9 @@ obj-$(CONFIG_SENSORS_WM831X)	+= wm831x-hwmon.o
 obj-$(CONFIG_SENSORS_WM8350)	+= wm8350-hwmon.o
 obj-$(CONFIG_SENSORS_XGENE)	+= xgene-hwmon.o
 
+################################################# NUBIA SENSOR START
+obj-$(CONFIG_NUBIA_SENSORS)			+= nubia_sensors/
+################################################# NUBIA SENSOR END
 obj-$(CONFIG_PMBUS)		+= pmbus/
 
 ccflags-$(CONFIG_HWMON_DEBUG_CHIP) := -DDEBUG

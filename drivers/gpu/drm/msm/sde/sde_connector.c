@@ -28,12 +28,14 @@
 
 /* Autorefresh will occur after FRAME_CNT frames. Large values are unlikely */
 #define AUTOREFRESH_MAX_FRAME_CNT 6
+#define MIN_BRIGHTNESS 7
 
 #define SDE_DEBUG_CONN(c, fmt, ...) SDE_DEBUG("conn%d " fmt,\
 		(c) ? (c)->base.base.id : -1, ##__VA_ARGS__)
 
 #define SDE_ERROR_CONN(c, fmt, ...) SDE_ERROR("conn%d " fmt,\
 		(c) ? (c)->base.base.id : -1, ##__VA_ARGS__)
+
 static u32 dither_matrix[DITHER_MATRIX_SZ] = {
 	15, 7, 13, 5, 3, 11, 1, 9, 12, 4, 14, 6, 0, 8, 2, 10
 };
@@ -84,6 +86,7 @@ static int sde_backlight_device_update_status(struct backlight_device *bd)
 
 	c_conn = bl_get_data(bd);
 	display = (struct dsi_display *) c_conn->display;
+
 	if (brightness > display->panel->bl_config.bl_max_level)
 		brightness = display->panel->bl_config.bl_max_level;
 
@@ -729,6 +732,7 @@ void sde_connector_helper_bridge_enable(struct drm_connector *connector)
 	if (c_conn->bl_device) {
 		c_conn->bl_device->props.power = FB_BLANK_UNBLANK;
 		c_conn->bl_device->props.state &= ~BL_CORE_FBBLANK;
+
 		backlight_update_status(c_conn->bl_device);
 	}
 	c_conn->panel_dead = false;
@@ -1822,6 +1826,7 @@ static int sde_connector_atomic_check(struct drm_connector *connector,
 static void _sde_connector_report_panel_dead(struct sde_connector *conn)
 {
 	struct drm_event event;
+	struct dsi_display *display;
 
 	if (!conn)
 		return;
@@ -1834,6 +1839,7 @@ static void _sde_connector_report_panel_dead(struct sde_connector *conn)
 	if (conn->panel_dead)
 		return;
 
+	display = conn->display;
 	conn->panel_dead = true;
 	event.type = DRM_EVENT_PANEL_DEAD;
 	event.length = sizeof(bool);
@@ -1841,8 +1847,8 @@ static void _sde_connector_report_panel_dead(struct sde_connector *conn)
 		conn->base.dev, &event, (u8 *)&conn->panel_dead);
 	sde_encoder_display_failure_notification(conn->encoder);
 	SDE_EVT32(SDE_EVTLOG_ERROR);
-	SDE_ERROR("esd check failed report PANEL_DEAD conn_id: %d enc_id: %d\n",
-			conn->base.base.id, conn->encoder->base.id);
+	SDE_ERROR("[%s]esd check failed report PANEL_DEAD conn_id: %d enc_id: %d\n",
+			display->name, conn->base.base.id, conn->encoder->base.id);
 }
 
 int sde_connector_esd_status(struct drm_connector *conn)

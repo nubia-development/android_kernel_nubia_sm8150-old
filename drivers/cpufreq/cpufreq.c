@@ -31,9 +31,9 @@
 #include <linux/syscore_ops.h>
 #include <linux/tick.h>
 #include <linux/sched/topology.h>
-#include <linux/sched/sysctl.h>
 
 #include <trace/events/power.h>
+#include <linux/mm.h>
 
 static LIST_HEAD(cpufreq_policy_list);
 
@@ -642,6 +642,28 @@ static int cpufreq_parse_governor(char *str_governor, unsigned int *policy,
 	return err;
 }
 
+    bool filterByProcName(char* proc_name) {
+        struct pid *pid = NULL;
+        struct task_struct *task = NULL;
+        int nr = task_tgid_vnr(current);
+        pid = find_get_pid(nr);
+        if(pid) {
+            task = get_pid_task(pid, PIDTYPE_PID);
+            put_pid(pid);
+
+            if(task) {
+                char cmdline[128];
+                get_cmdline(task, cmdline, 128);
+                if(!strcmp(cmdline, proc_name)) {
+                    put_task_struct(task);
+                    return true;
+                }
+
+                put_task_struct(task);
+            }
+        }
+        return false;
+    }
 /**
  * cpufreq_per_cpu_attr_read() / show_##file_name() -
  * print out cpufreq information
@@ -657,40 +679,40 @@ static ssize_t show_##file_name				\
 	return sprintf(buf, "%u\n", policy->object);	\
 }
 
+// Please add/remove game app process's cmdline(/proc/<pid>/cmdline) in game list array.
+char* gamelist[] = {
+    "com.wooduan.ssjj.c360",
+    "com.wooduan.ssjj.nubia",
+    "com.spidegamer.spider.junior.man.oforder.adp",
+    "com.yingxiong.zhanzheng",
+    "com.mac.xraytransform.fhp",
+    "com.halfbrick.fruitninjafree",
+    NULL,
+};
+
+// Game app’s Unity engine reads CPU max frequency. If CPU max frequency
+// is bigger than "2419200KB", return value "2419200KB" to Unity.
+#define show_cpuinfo_max_freq(file_name, object)\
+static ssize_t show_##file_name \
+(struct cpufreq_policy *policy, char *buf) \
+{ \
+ int i = 0; \
+ while (gamelist[i] != NULL) { \
+if ( filterByProcName(gamelist[i]) \
+ && policy->object > 2419200 ) { \
+ return sprintf(buf, "%u\n", 2419200); \
+ } \
+  i++; \
+ } \
+return sprintf(buf, "%u\n", policy->object); \
+} \
+
 show_one(cpuinfo_min_freq, cpuinfo.min_freq);
+show_cpuinfo_max_freq(cpuinfo_max_freq, cpuinfo.max_freq);
+//show_one(cpuinfo_max_freq, cpuinfo.max_freq);
 show_one(cpuinfo_transition_latency, cpuinfo.transition_latency);
 show_one(scaling_min_freq, min);
 show_one(scaling_max_freq, max);
-
-unsigned int cpuinfo_max_freq_cached;
-
-static bool should_use_cached_freq(int cpu)
-{
-	/* This is a safe check. may not be needed */
-	if (!cpuinfo_max_freq_cached)
-		return false;
-
-	/*
-	 * perfd already configure sched_lib_mask_force to
-	 * 0xf0 from user space. so re-using it.
-	 */
-	if (!(BIT(cpu) & sched_lib_mask_force))
-		return false;
-
-	return is_sched_lib_based_app(current->pid);
-}
-
-static ssize_t show_cpuinfo_max_freq(struct cpufreq_policy *policy, char *buf)
-{
-	unsigned int freq = policy->cpuinfo.max_freq;
-
-	if (should_use_cached_freq(policy->cpu))
-		freq = cpuinfo_max_freq_cached << 1;
-	else
-		freq = policy->cpuinfo.max_freq;
-
-	return scnprintf(buf, PAGE_SIZE, "%u\n", freq);
-}
 
 __weak unsigned int arch_freq_get_on_cpu(int cpu)
 {

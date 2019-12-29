@@ -44,6 +44,7 @@
 #define DSI_CLOCK_BITRATE_RADIX 10
 #define MAX_TE_SOURCE_ID  2
 
+
 DEFINE_MUTEX(dsi_display_clk_mutex);
 
 static char dsi_display_primary[MAX_CMDLINE_PARAM_LEN];
@@ -68,7 +69,8 @@ static void dsi_display_mask_ctrl_error_interrupts(struct dsi_display *display,
 		return;
 
 	display_for_each_ctrl(i, display) {
-		ctrl = &display->ctrl[i];
+
+    ctrl = &display->ctrl[i];
 		if (!ctrl)
 			continue;
 		dsi_ctrl_mask_error_status_interrupts(ctrl->ctrl, mask, enable);
@@ -576,6 +578,7 @@ static bool dsi_display_validate_reg_read(struct dsi_panel *panel)
 
 	for (j = 0; j < config->groups; ++j) {
 		for (i = 0; i < len; ++i) {
+			pr_debug(" return_buf[%d]=0x%x,status_value=0x%x\n",i,config->return_buf[i],config->status_value[group + i]);
 			if (config->return_buf[i] !=
 				config->status_value[group + i]) {
 				DRM_ERROR("mismatch: 0x%x\n",
@@ -965,19 +968,7 @@ static void _dsi_display_continuous_clk_ctrl(struct dsi_display *display,
 
 	display_for_each_ctrl(i, display) {
 		ctrl = &display->ctrl[i];
-
-		/**
-		 * For phy ver 4.0 chipsets, configure DSI controller and
-		 * DSI PHY to force clk lane to HS mode always whereas
-		 * for other phy ver chipsets, configure DSI controller only.
-		 */
-		if (ctrl->phy->hw.ops.set_continuous_clk) {
-			dsi_ctrl_hs_req_sel(ctrl->ctrl, true);
-			dsi_ctrl_set_continuous_clk(ctrl->ctrl, enable);
-			dsi_phy_set_continuous_clk(ctrl->phy, enable);
-		} else {
-			dsi_ctrl_set_continuous_clk(ctrl->ctrl, enable);
-		}
+		dsi_ctrl_set_continuous_clk(ctrl->ctrl, enable);
 	}
 }
 
@@ -2392,9 +2383,7 @@ static int dsi_display_ctrl_init(struct dsi_display *display)
 	} else {
 		display_for_each_ctrl(i, display) {
 			ctrl = &display->ctrl[i];
-			rc = dsi_ctrl_update_host_state(ctrl->ctrl,
-							DSI_CTRL_OP_HOST_INIT,
-							true);
+			rc = dsi_ctrl_update_host_init_state(ctrl->ctrl, true);
 			if (rc)
 				pr_debug("host init update failed rc=%d\n", rc);
 		}
@@ -2478,25 +2467,6 @@ static int dsi_display_ctrl_host_disable(struct dsi_display *display)
 	struct dsi_display_ctrl *m_ctrl, *ctrl;
 
 	m_ctrl = &display->ctrl[display->cmd_master_idx];
-	/*
-	 * For platforms where ULPS is controlled by DSI controller block,
-	 * do not disable dsi controller block if lanes are to be
-	 * kept in ULPS during suspend. So just update the SW state
-	 * and return early.
-	 */
-	if (display->panel->ulps_suspend_enabled &&
-	    !m_ctrl->phy->hw.ops.ulps_ops.ulps_request) {
-		display_for_each_ctrl(i, display) {
-			ctrl = &display->ctrl[i];
-			rc = dsi_ctrl_update_host_state(ctrl->ctrl,
-							DSI_CTRL_OP_HOST_ENGINE,
-							false);
-			if (rc)
-				pr_debug("host state update failed %d\n", rc);
-		}
-		return rc;
-	}
-
 	display_for_each_ctrl(i, display) {
 		ctrl = &display->ctrl[i];
 		if (!ctrl->ctrl || (ctrl == m_ctrl))
@@ -5250,7 +5220,7 @@ int dsi_display_dev_probe(struct platform_device *pdev)
 		/* primary/secondary display should match with current dsi */
 		if (strcmp(dsi_type, disp_type))
 			continue;
-
+		
 		if (boot_disp->boot_disp_en) {
 			if (!strcmp(boot_disp->name, name)) {
 				disp_node = np;
@@ -5290,6 +5260,7 @@ int dsi_display_dev_probe(struct platform_device *pdev)
 		rc = dsi_display_init(display);
 		if (rc)
 			goto end;
+		
 	}
 
 	return 0;
@@ -6824,8 +6795,7 @@ int dsi_display_prepare(struct dsi_display *display)
 	if (mode->dsi_mode_flags & DSI_MODE_FLAG_DMS) {
 		if (display->is_cont_splash_enabled) {
 			pr_err("DMS is not supposed to be set on first frame\n");
-			rc = -EINVAL;
-			goto error;
+			return -EINVAL;
 		}
 		/* update dsi ctrl for new mode */
 		rc = dsi_display_pre_switch(display);

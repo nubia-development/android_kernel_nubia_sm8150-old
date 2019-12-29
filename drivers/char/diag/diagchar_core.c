@@ -22,7 +22,6 @@
 #include <linux/sched.h>
 #include <linux/ratelimit.h>
 #include <linux/timer.h>
-#include <linux/sched/task.h>
 #ifdef CONFIG_DIAG_OVER_USB
 #include <linux/usb/usbdiag.h>
 #endif
@@ -526,11 +525,9 @@ static int diag_remove_client_entry(struct file *file)
 	 * This call will remove any pending registrations of such client
 	 */
 	mutex_lock(&driver->dci_mutex);
-	do {
-		dci_entry = dci_lookup_client_entry_pid(current->tgid);
-		if (dci_entry)
-			diag_dci_deinit_client(dci_entry);
-	} while (dci_entry);
+	dci_entry = dci_lookup_client_entry_pid(current->tgid);
+	if (dci_entry)
+		diag_dci_deinit_client(dci_entry);
 	mutex_unlock(&driver->dci_mutex);
 
 	diag_close_logging_process(current->tgid);
@@ -712,6 +709,8 @@ int diag_cmd_add_reg(struct diag_cmd_reg_entry_t *new_entry, uint8_t proc,
 		     int pid)
 {
 	struct diag_cmd_reg_t *new_item = NULL;
+    struct diag_cmd_reg_t *temp_item = NULL;
+    struct diag_cmd_reg_entry_t *temp_entry = NULL;
 
 	if (!new_entry) {
 		pr_err("diag: In %s, invalid new entry\n", __func__);
@@ -738,6 +737,18 @@ int diag_cmd_add_reg(struct diag_cmd_reg_entry_t *new_entry, uint8_t proc,
 	INIT_LIST_HEAD(&new_item->link);
 
 	mutex_lock(&driver->cmd_reg_mutex);
+    if(proc > 0){
+        temp_entry = diag_cmd_search(new_entry,proc);
+        if(temp_entry){
+            temp_item = (struct diag_cmd_reg_t *)container_of(temp_entry,struct diag_cmd_reg_t,entry);
+            if(temp_item){
+                temp_item->pid = pid;
+                mutex_unlock(&driver->cmd_reg_mutex);
+                kfree(new_item);
+                return 0;
+            }
+        }
+    }
 	list_add_tail(&new_item->link, &driver->cmd_reg_list);
 	driver->cmd_reg_count++;
 	diag_cmd_invalidate_polling(DIAG_CMD_ADD);
@@ -934,9 +945,6 @@ drop:
 				mutex_unlock(&buf_entry->data_mutex);
 				kfree(buf_entry);
 				continue;
-			} else {
-				mutex_unlock(&buf_entry->data_mutex);
-				continue;
 			}
 
 		}
@@ -945,7 +953,7 @@ drop:
 
 	if (total_data_len > 0) {
 		/* Copy the total data length */
-		COPY_USER_SPACE_OR_ERR(buf+(*pret), total_data_len, 4);
+		COPY_USER_SPACE_OR_ERR(buf+8, total_data_len, 4);
 		if (ret == -EFAULT)
 			goto exit;
 		ret -= 4;
@@ -3680,56 +3688,35 @@ exit:
 				DIAG_LOG(DIAG_DEBUG_DCI,
 				"diag: valid task doesn't exist for pid = %d\n",
 				entry->tgid);
-				put_pid(pid_struct);
 				continue;
 			}
-			if (task_s == entry->client) {
-				if (entry->client->tgid != current->tgid) {
-					put_task_struct(task_s);
-					put_pid(pid_struct);
+			if (task_s == entry->client)
+				if (entry->client->tgid != current->tgid)
 					continue;
-				}
-			}
-			if (!entry->in_service) {
-				put_task_struct(task_s);
-				put_pid(pid_struct);
+			if (!entry->in_service)
 				continue;
-			}
 			if (copy_to_user(buf + ret, &data_type, sizeof(int))) {
-				put_task_struct(task_s);
-				put_pid(pid_struct);
 				mutex_unlock(&driver->dci_mutex);
 				goto end;
 			}
 			ret += sizeof(int);
 			if (copy_to_user(buf + ret, &entry->client_info.token,
 				sizeof(int))) {
-				put_task_struct(task_s);
-				put_pid(pid_struct);
 				mutex_unlock(&driver->dci_mutex);
 				goto end;
 			}
 			ret += sizeof(int);
 			copy_dci_data = 1;
 			exit_stat = diag_copy_dci(buf, count, entry, &ret);
+			mutex_lock(&driver->diagchar_mutex);
+			driver->data_ready[index] ^= DCI_DATA_TYPE;
+			atomic_dec(&driver->data_ready_notif[index]);
+			mutex_unlock(&driver->diagchar_mutex);
 			if (exit_stat == 1) {
-				put_task_struct(task_s);
-				put_pid(pid_struct);
-				mutex_lock(&driver->diagchar_mutex);
-				driver->data_ready[index] ^= DCI_DATA_TYPE;
-				atomic_dec(&driver->data_ready_notif[index]);
-				mutex_unlock(&driver->diagchar_mutex);
 				mutex_unlock(&driver->dci_mutex);
 				goto end;
 			}
-			put_task_struct(task_s);
-			put_pid(pid_struct);
-			continue;
 		}
-		mutex_lock(&driver->diagchar_mutex);
-		driver->data_ready[index] ^= DCI_DATA_TYPE;
-		atomic_dec(&driver->data_ready_notif[index]);
-		mutex_unlock(&driver->diagchar_mutex);
 		mutex_unlock(&driver->dci_mutex);
 		goto end;
 	}

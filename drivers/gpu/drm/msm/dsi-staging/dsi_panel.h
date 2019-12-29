@@ -36,7 +36,7 @@
 #define DSI_CMD_PPS_SIZE 135
 
 #define DSI_MODE_MAX 5
-
+#define NUBIA_BACKLIGHT_CURVE 1
 enum dsi_panel_rotation {
 	DSI_PANEL_ROTATE_NONE = 0,
 	DSI_PANEL_ROTATE_HV_FLIP,
@@ -108,7 +108,9 @@ struct dsi_backlight_config {
 	u32 bl_level;
 	u32 bl_scale;
 	u32 bl_scale_ad;
-
+#ifdef NUBIA_BACKLIGHT_CURVE
+    uint32_t backlight_curve[256];
+#endif
 	int en_gpio;
 	/* PWM params */
 	bool pwm_pmi_control;
