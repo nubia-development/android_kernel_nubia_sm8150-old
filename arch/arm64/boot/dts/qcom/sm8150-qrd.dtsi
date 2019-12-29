@@ -86,7 +86,7 @@
 		compatible = "qcom,qbt1000";
 		clock-names = "core", "iface";
 		clock-frequency = <25000000>;
-		qcom,ipc-gpio = <&tlmm 118 0>;
+		/*qcom,ipc-gpio = <&tlmm 118 0>;*/
 		pinctrl-names = "default";
 		pinctrl-0 = <&key_home_default>;
 		qcom,finger-detect-gpio = <&pm8150_gpios 1 0>;
@@ -127,9 +127,9 @@
 		interrupt-names = "nfc_irq";
 		pinctrl-names = "nfc_active", "nfc_suspend";
 		pinctrl-0 = <&nfc_int_active &nfc_enable_active
-					&nfc_clk_req_active>;
+					/*&nfc_clk_req_active*/>;
 		pinctrl-1 = <&nfc_int_suspend &nfc_enable_suspend
-					&nfc_clk_req_suspend>;
+					/*&nfc_clk_req_suspend*/>;
 	};
 };
 
@@ -256,12 +256,12 @@
 };
 
 &sdhc_2 {
-	vdd-supply = <&pm8150l_l9>;
+	//vdd-supply = <&pm8150l_l9>;
 	qcom,vdd-voltage-level = <2950000 2960000>;
 	qcom,vdd-current-level = <200 800000>;
 
 	vdd-io-supply = <&pm8150l_l6>;
-	qcom,vdd-io-voltage-level = <1808000 2960000>;
+	qcom,vdd-io-voltage-level = <2800000 2800000>;
 	qcom,vdd-io-current-level = <200 22000>;
 
 	pinctrl-names = "active", "sleep";
@@ -455,7 +455,6 @@
 		polling-delay = <0>;
 		thermal-governor = "user_space";
 		thermal-sensors = <&pm8150b_adc_tm ADC_AMUX_THM1_PU2>;
-		wake-capable-sensor;
 		trips {
 			active-config0 {
 				temperature = <125000>;
@@ -470,7 +469,6 @@
 		polling-delay = <0>;
 		thermal-governor = "user_space";
 		thermal-sensors = <&pm8150_adc_tm ADC_XO_THERM_PU2>;
-		wake-capable-sensor;
 		trips {
 			active-config0 {
 				temperature = <125000>;
@@ -485,7 +483,6 @@
 		polling-delay = <0>;
 		thermal-governor = "user_space";
 		thermal-sensors = <&pm8150_adc_tm ADC_AMUX_THM1_PU2>;
-		wake-capable-sensor;
 		trips {
 			active-config0 {
 				temperature = <125000>;
@@ -500,7 +497,6 @@
 		polling-delay = <0>;
 		thermal-governor = "user_space";
 		thermal-sensors = <&pm8150_adc_tm ADC_AMUX_THM2_PU2>;
-		wake-capable-sensor;
 		trips {
 			active-config0 {
 				temperature = <125000>;
@@ -515,7 +511,6 @@
 		polling-delay = <0>;
 		thermal-governor = "user_space";
 		thermal-sensors = <&pm8150l_adc_tm ADC_AMUX_THM1_PU2>;
-		wake-capable-sensor;
 		trips {
 			active-config0 {
 				temperature = <125000>;
@@ -530,7 +525,6 @@
 		polling-delay = <0>;
 		thermal-governor = "user_space";
 		thermal-sensors = <&pm8150l_adc_tm ADC_AMUX_THM2_PU2>;
-		wake-capable-sensor;
 		trips {
 			active-config0 {
 				temperature = <125000>;
@@ -545,7 +539,6 @@
 		polling-delay = <0>;
 		thermal-governor = "user_space";
 		thermal-sensors = <&pm8150l_adc_tm ADC_AMUX_THM3_PU2>;
-		wake-capable-sensor;
 		trips {
 			active-config0 {
 				temperature = <125000>;
