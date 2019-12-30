@@ -775,13 +775,12 @@ static int smblib_usb_pd_adapter_allowance_override(struct smb_charger *chg,
 {
 	int rc = 0;
 	
-	#if defined(CONFIG_NUBIA_CHARGE_FEATURE)
-	if(chg->real_charger_type != POWER_SUPPLY_TYPE_USB_PD)
-		allowed_voltage = USBIN_ADAPTER_ALLOW_5V_TO_12V;
-		//dump_stack();
-	//pr_err("HDL:allowed_voltage=%d,real_charger_type is %d\n", allowed_voltage,chg->real_charger_type);
-	#endif
-
+//	#if defined(CONFIG_NUBIA_CHARGE_FEATURE)
+//	if(chg->real_charger_type != POWER_SUPPLY_TYPE_USB_PD)
+//		allowed_voltage = USBIN_ADAPTER_ALLOW_5V_TO_12V;
+//		//dump_stack();
+//	//pr_err("HDL:allowed_voltage=%d,real_charger_type is %d\n", allowed_voltage,chg->real_charger_type);
+//	#endif
 	if (chg->chg_param.smb_version == PMI632_SUBTYPE)
 		return 0;
 
@@ -4874,8 +4873,6 @@ int smblib_set_prop_thermal_overheat(struct smb_charger *chg,
 	chg->thermal_overheat = !!therm_overheat;
 	return 0;
 }
-
-#endif
 
 /**********************
  * INTERRUPT HANDLERS *
