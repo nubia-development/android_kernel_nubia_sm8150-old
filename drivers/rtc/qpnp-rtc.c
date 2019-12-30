@@ -781,10 +781,10 @@ static int qpnp_rtc_freeze(struct device *dev)
 	return 0;
 }
 
-static const struct dev_pm_ops qpnp_rtc_pm_ops = {
-	.freeze = qpnp_rtc_freeze,
-	.restore = qpnp_rtc_restore,
-};
+//static const struct dev_pm_ops qpnp_rtc_pm_ops = {
+//	.freeze = qpnp_rtc_freeze,
+//	.restore = qpnp_rtc_restore,
+//};
 
 static const struct of_device_id spmi_match_table[] = {
 	{
