@@ -172,8 +172,7 @@ struct qrtr_node {
 	struct kthread_worker kworker;
 	struct task_struct *task;
 	struct kthread_work read_data;
-
-	struct wakeup_source *ws;
+    struct wakeup_source *ws;
 
 	void *ilc;
 };
@@ -616,17 +615,20 @@ static void qrtr_node_assign(struct qrtr_node *node, unsigned int nid)
 	if (node->nid == QRTR_EP_NID_AUTO)
 		node->nid = nid;
 	up_write(&qrtr_node_lock);
-
 	snprintf(name, sizeof(name), "qrtr_%d", nid);
+
 	if (!node->ilc) {
-		node->ilc = ipc_log_context_create(QRTR_LOG_PAGE_CNT, name, 0);
+
+			node->ilc = ipc_log_context_create(QRTR_LOG_PAGE_CNT, name, 0);
 	}
-	/* create wakeup source for only  NID = 0.
-	 * From other nodes sensor service stream samples
-	 * cause APPS suspend problems and power drain issue.
-	 */
-	if (!node->ws && nid == 0)
-		node->ws = wakeup_source_register(name);
+
+	/* create wakeup source for only NID = 0.
+     * From other nodes sensor service stream samples
+     * cause APPS suspend problems and power drain issue.
+     */
+    if (!node->ws && nid == 0)
+        node->ws = wakeup_source_register(name);
+
 }
 
 /**
