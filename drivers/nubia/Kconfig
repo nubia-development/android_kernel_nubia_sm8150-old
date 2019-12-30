@@ -42,3 +42,46 @@ source "drivers/nubia/touch/Kconfig"
 endif
 
 endmenu
+
+# Nubia configuration options
+
+ config MACH_NUBIA
+    bool "NUBIA device"
+    depends on ARCH_QCOM
+    help
+      Support for Nubia products
+
+ config MACH_NUBIA_SM8150
+    bool "NUBIA SM8150"
+    depends on ARCH_SM8150
+    select MACH_NUBIA
+    help
+      Support for SM8150 / SDM855 Nubia variants
+
+ menu "Nubia board selection"
+
+ config MACH_NUBIA_NX627H
+    bool "NUBIA_NX627H board"
+    select MACH_NUBIA_SM8150
+    help
+      Support for Nubia Z20 variant (1)
+
+ config MACH_NUBIA_NX627J
+    bool "NUBIA_NX627J board"
+    select MACH_NUBIA_SM8150
+    help
+      Support for Nubia Z20 variant (2)
+
+ config MACH_NUBIA_NX629J
+    bool "NUBIA_NX629J board"
+    select MACH_NUBIA_SM8150
+    help
+      Support for Nubia Red Magic 3 
+
+ config MACH_NUBIA_NX639J
+    bool "NUBIA_NX639J board"
+    select MACH_NUBIA_SM8150
+    help
+      Support for Nubia NX639J variant (unknown device) 
+
+ endmenu
