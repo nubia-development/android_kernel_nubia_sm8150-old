@@ -1146,6 +1146,9 @@ int filp_close(struct file *filp, fl_owner_t id)
 		return 0;
 	}
 
+//	trace_printk("filp_close debug file %p counter %u fdt %p iname %s mnt %p\n",
+//			filp, file_count(filp), id, filp->f_path.dentry->d_iname, filp->f_path.mnt);
+
 	if (filp->f_op->flush)
 		retval = filp->f_op->flush(filp, id);
 

@@ -329,6 +329,10 @@ static void __fput(struct file *file)
 	might_sleep();
 
 	fsnotify_close(file);
+
+//	trace_printk("filp_close debug fput file %p counter %u name %s mnt %p\n",
+//			file, file_count(file), file->f_path.dentry->d_iname, file->f_path.mnt);
+
 	/*
 	 * The function eventpoll_release() should be the first called
 	 * in the file cleanup chain.
