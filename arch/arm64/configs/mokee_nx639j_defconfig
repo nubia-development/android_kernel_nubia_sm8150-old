@@ -769,3 +769,6 @@ CONFIG_MACH_NUBIA_SM8150=y
 
 # Nubia qcacld-3.0 -- Add by Cyborg2017(Yang Cyborg) [20191229]
 CONFIG_QCA_CLD_WLAN=y
+
+# Nubia Enable optimized inlining  -- Add by Cyborg2017(Yang Cyborg) [20191229]
+CONFIG_OPTIMIZE_INLINING=y
