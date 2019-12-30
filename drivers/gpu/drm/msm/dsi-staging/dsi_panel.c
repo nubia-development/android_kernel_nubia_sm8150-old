@@ -2426,7 +2426,7 @@ static int dsi_panel_parse_gpios(struct dsi_panel *panel)
 						 "qcom,panel_3p3_en_gpio",
 						 0);
 	if (!gpio_is_valid(panel->reset_config.lcd_3p3_en_gpio) &&
-			!panel->host_config.ext_bridge_mode) {
+			!panel->host_config.ext_bridge_num) {
 			rc = panel->reset_config.lcd_3p3_en_gpio;
 			pr_err("[%s] failed get lcd_3p3_en_gpio gpio, rc=%d\n", panel->name, rc);
 			goto error;
