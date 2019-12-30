@@ -179,15 +179,26 @@ DTC_INCLUDE    := $(srctree)/scripts/dtc/include-prefixes
 dtc_cpp_flags  = -Wp,-MD,$(depfile).pre.tmp -nostdinc                    \
 		 $(addprefix -I,$(DTC_INCLUDE))                          \
 		 -undef -D__DTS__
- 
+
+ifeq ($(CONFIG_MACH_NUBIA_NX627H),y)
 #nubia: Set nubia overwrite dtsi file
-dtc_cpp_flags += -DNUBIA_OVERWRITE_DTSI_FILE=\"../nubia/$(TARGET_PRODUCT)/head.dtsi\"
-
-#nubia: Set audio overwrite dtsi file 	188
-dtc_cpp_flags += -DNUBIA_AUDIO_OVERWRITE_DTSI_FILE=\"../nubia/$(TARGET_PRODUCT)/nubia-audio-lpass.dtsi\"
-
-#ZTEMT: fengxun set camera overwrite dtsi file
-dtc_cpp_flags += -DNUBIA_CAMERA_OVERWRITE_DTSI_FILE=\"../nubia/$(TARGET_PRODUCT)/camera.dtsi\"
+dtc_cpp_flags += -DNUBIA_OVERWRITE_DTSI_FILE=\"../nubia/NX627H/head.dtsi\"
+dtc_cpp_flags += -DNUBIA_AUDIO_OVERWRITE_DTSI_FILE=\"../nubia/NX627H/nubia-audio-lpass.dtsi\"
+dtc_cpp_flags += -DNUBIA_CAMERA_OVERWRITE_DTSI_FILE=\"../nubia/NX627H/camera.dtsi\"
+else ifeq ($(CONFIG_MACH_NUBIA_NX627J),y)
+#nubia: Set nubia overwrite dtsi file
+dtc_cpp_flags += -DNUBIA_OVERWRITE_DTSI_FILE=\"../nubia/NX627J/head.dtsi\"
+dtc_cpp_flags += -DNUBIA_AUDIO_OVERWRITE_DTSI_FILE=\"../nubia/NX627J/nubia-audio-lpass.dtsi\"
+dtc_cpp_flags += -DNUBIA_CAMERA_OVERWRITE_DTSI_FILE=\"../nubia/NX627J/camera.dtsi\"
+else ifeq ($(CONFIG_MACH_NUBIA_NX629J),y)
+dtc_cpp_flags += -DNUBIA_OVERWRITE_DTSI_FILE=\"../nubia/NX629J/head.dtsi\"
+dtc_cpp_flags += -DNUBIA_AUDIO_OVERWRITE_DTSI_FILE=\"../nubia/NX629J/nubia-audio-lpass.dtsi\"
+dtc_cpp_flags += -DNUBIA_CAMERA_OVERWRITE_DTSI_FILE=\"../nubia/NX629J/camera.dtsi\"
+else ifeq ($(CONFIG_MACH_NUBIA_NX639J),y)
+dtc_cpp_flags += -DNUBIA_OVERWRITE_DTSI_FILE=\"../nubia/NX639J/head.dtsi\"
+dtc_cpp_flags += -DNUBIA_AUDIO_OVERWRITE_DTSI_FILE=\"../nubia/NX639J/nubia-audio-lpass.dtsi\"
+dtc_cpp_flags += -DNUBIA_CAMERA_OVERWRITE_DTSI_FILE=\"../nubia/NX639J/camera.dtsi\"
+endif
 
 # Finds the multi-part object the current object will be linked into
 modname-multi = $(sort $(foreach m,$(multi-used),\
