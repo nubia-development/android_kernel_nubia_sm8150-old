@@ -76,7 +76,7 @@ static bool snd_soc_dai_stream_valid(struct snd_soc_dai *dai, int stream)
 	/* If the codec specifies any rate at all, it supports the stream. */
 	return codec_stream->rates;
 }
-
+   
 /**
  * snd_soc_runtime_activate() - Increment active count for PCM runtime components
  * @rtd: ASoC PCM runtime that is activated
