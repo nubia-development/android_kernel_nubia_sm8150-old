@@ -1279,14 +1279,13 @@ config TOUCHSCREEN_HIMAX_CHIPSET
 
 source "drivers/input/touchscreen/hxchipset/Kconfig"
 
-config TOUCHSCREEN_SYNAPTICS_DSX
-        bool "Synaptics DSX Touchscreen Driver"
-        depends on I2C
-        help
-          Say Y here if you have a Synaptics Touchscreen.
+#config TOUCHSCREEN_SYNAPTICS_DSX
+#        bool "Synaptics DSX Touchscreen Driver"
+#        depends on I2C
+#        help
+#          Say Y here if you have a Synaptics Touchscreen.
+#          If unsure, say N.
 
-          If unsure, say N.
-
-source "drivers/input/touchscreen/synaptics_dsx/Kconfig"
+#source "drivers/input/touchscreen/synaptics_dsx/Kconfig"
 
 endif

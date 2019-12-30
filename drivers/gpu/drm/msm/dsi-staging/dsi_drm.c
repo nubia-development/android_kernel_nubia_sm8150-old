@@ -237,6 +237,7 @@ static void dsi_bridge_enable(struct drm_bridge *bridge)
 
 	if (display && display->drm_conn)
 		sde_connector_helper_bridge_enable(display->drm_conn);
+
 }
 
 static void dsi_bridge_disable(struct drm_bridge *bridge)
