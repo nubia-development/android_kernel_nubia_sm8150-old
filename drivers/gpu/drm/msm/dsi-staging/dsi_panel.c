@@ -18,11 +18,16 @@
 #include <linux/gpio.h>
 #include <linux/of_gpio.h>
 #include <video/mipi_display.h>
-
+#ifdef CONFIG_NUBIA_SWITCH_LCD
+#include <linux/msm_drm_notify.h>
+#endif
 #include "dsi_panel.h"
 #include "dsi_ctrl_hw.h"
 #include "dsi_parser.h"
 
+#ifdef CONFIG_NUBIA_LCD_DISP_PREFERENCE
+#include "nubia_disp_preference.h"
+#endif
 /**
  * topology is currently defined by a set of following 3 values:
  * 1. num of layer mixers
@@ -41,6 +46,12 @@
 #define DEFAULT_PANEL_JITTER_ARRAY_SIZE		2
 #define MAX_PANEL_JITTER		10
 #define DEFAULT_PANEL_PREFILL_LINES	25
+
+
+
+#ifdef CONFIG_NUBIA_SWITCH_LCD
+extern struct nubia_disp_type nubia_disp_val;
+#endif
 
 enum dsi_dsc_ratio_type {
 	DSC_8BPC_8BPP,
@@ -98,6 +109,69 @@ static char dsi_dsc_rc_range_max_qp_1_1_scr1[][15] = {
  */
 static char dsi_dsc_rc_range_bpg_offset[] = {2, 0, 0, -2, -4, -6, -8, -8,
 		-8, -10, -10, -12, -12, -12, -12};
+
+extern unsigned int fps_store;
+extern unsigned int mode_store;
+
+#ifdef CONFIG_NUBIA_SWITCH_LCD
+const char *g_dsi0_key="ew811";
+const char *g_dsi1_key="himax";
+extern int get_disp_reset(void);
+
+static BLOCKING_NOTIFIER_HEAD(msm_drm_panel_notifier_list);
+
+/**
+ * msm_drm_panel_register_client - register a client notifier
+ * @nb: notifier block to callback on events
+ *
+ * This function registers a notifier callback function
+ * to msm_drm_notifier_list, which would be called when
+ * received unblank/power down event.
+ */
+int msm_drm_panel_register_client(struct notifier_block *nb)
+{
+	return blocking_notifier_chain_register(&msm_drm_panel_notifier_list,
+						nb);
+}
+
+/**
+ * msm_drm_panel_unregister_client - unregister a client notifier
+ * @nb: notifier block to callback on events
+ *
+ * This function unregisters the callback function from
+ * msm_drm_notifier_list.
+ */
+int msm_drm_panel_unregister_client(struct notifier_block *nb)
+{
+	return blocking_notifier_chain_unregister(&msm_drm_panel_notifier_list,
+						  nb);
+}
+
+/**
+ * msm_drm_panel_notifier_call_chain - notify clients of drm_events
+ * @val: event MSM_DRM_EARLY_EVENT_BLANK or MSM_DRM_EVENT_BLANK
+ * @v: notifier data, inculde display id and display blank
+ *     event(unblank or power down).
+ */
+static int msm_drm_panel_notifier_call_chain(unsigned long val, void *v)
+{
+	return blocking_notifier_call_chain(&msm_drm_panel_notifier_list, val,
+					    v);
+}
+
+void dsi_panel_notifier(int event, unsigned long data){
+        struct msm_drm_panel_notifier notifier_data;
+        int blank = data;
+        if(get_disp_reset()) {
+			pr_debug("nubia switch ignore notify event=%d, data=%ul\n", event, data);
+            return;
+        }
+        notifier_data.data = &blank;
+        notifier_data.id = 0;
+        msm_drm_panel_notifier_call_chain(event,
+                                    &notifier_data);
+}
+#endif
 
 int dsi_dsc_create_pps_buf_cmd(struct msm_display_dsc_info *dsc, char *buf,
 				int pps_id)
@@ -433,11 +507,62 @@ static int dsi_panel_power_on(struct dsi_panel *panel)
 {
 	int rc = 0;
 
+	DRM_NUBIA_DEBUG("[%s]++", panel->name);
+#ifdef CONFIG_NUBIA_SWITCH_LCD
+	if(panel->id == 0){
+		dsi_panel_notifier(MSM_DRM_SWITCH_EARLY_EVENT_BLANK,MSM_DRM_MAJOR_BLANK_UNBLANK);
+	}
+	if(panel->id == 1){
+		dsi_panel_notifier(MSM_DRM_SWITCH_EARLY_EVENT_BLANK,MSM_DRM_SLAVE_BLANK_UNBLANK);
+	}
+#endif
+#ifdef CONFIG_NUBIA_OLED_POWER
 	rc = dsi_pwr_enable_regulator(&panel->power_info, true);
 	if (rc) {
 		pr_err("[%s] failed to enable vregs, rc=%d\n", panel->name, rc);
 		goto exit;
 	}
+	usleep_range(1000,1000);
+	if (gpio_is_valid(panel->reset_config.lcd_3p3_en_gpio)) 
+			gpio_set_value(panel->reset_config.lcd_3p3_en_gpio, 1);
+	rc = dsi_panel_set_pinctrl_state(panel, true);
+	if (rc) {
+		pr_err("[%s] failed to set pinctrl, rc=%d\n", panel->name, rc);
+		goto error_disable_vregs;
+	}
+	usleep_range(2000,2000);
+	rc = dsi_panel_reset(panel);
+	if (rc) {
+		pr_err("[%s] failed to reset panel, rc=%d\n", panel->name, rc);
+		goto error_disable_gpio;
+	}
+#else
+
+	rc = dsi_pwr_enable_regulator(&panel->power_info, true);
+	if (rc) {
+		pr_err("[%s] failed to enable vregs, rc=%d\n", panel->name, rc);
+		goto exit;
+	}
+
+#ifdef CONFIG_NUBIA_SWITCH_LCD
+	if (!strcmp(panel->type, "primary")) {
+		usleep_range(1000,1000);
+		if (gpio_is_valid(panel->reset_config.front_panel_vci_3p3_gpio))
+			gpio_set_value(panel->reset_config.front_panel_vci_3p3_gpio, 1);
+
+		pr_debug("[%s]front-panel-vci-3p3-gpio set high ok !\n", panel->name);
+	} else {
+		if (gpio_is_valid(panel->reset_config.back_vddi_1p8_gpio))
+			gpio_set_value(panel->reset_config.back_vddi_1p8_gpio, 1);
+
+		usleep_range(1000,1000);
+		if (gpio_is_valid(panel->reset_config.back_panel_vci_3p3_gpio))
+			gpio_set_value(panel->reset_config.back_panel_vci_3p3_gpio, 1);
+
+		usleep_range(10000,10000);
+		pr_debug("[%s]back-panel-vci-3p3-gpio set high ok !\n", panel->name);
+	}
+#endif
 
 	rc = dsi_panel_set_pinctrl_state(panel, true);
 	if (rc) {
@@ -451,6 +576,15 @@ static int dsi_panel_power_on(struct dsi_panel *panel)
 		goto error_disable_gpio;
 	}
 
+#endif
+#ifdef CONFIG_NUBIA_SWITCH_LCD
+		if(panel->id == 0){
+			dsi_panel_notifier(MSM_DRM_SWITCH_EVENT_BLANK,MSM_DRM_MAJOR_BLANK_UNBLANK);
+		}
+		if(panel->id == 1){
+			dsi_panel_notifier(MSM_DRM_SWITCH_EVENT_BLANK,MSM_DRM_SLAVE_BLANK_UNBLANK);
+		}
+#endif
 	goto exit;
 
 error_disable_gpio:
@@ -473,12 +607,49 @@ static int dsi_panel_power_off(struct dsi_panel *panel)
 {
 	int rc = 0;
 
+	DRM_NUBIA_DEBUG("[%s]--", panel->name);
+#ifdef CONFIG_NUBIA_SWITCH_LCD
+	if(panel->id == 0){
+		dsi_panel_notifier(MSM_DRM_SWITCH_EARLY_EVENT_BLANK,MSM_DRM_MAJOR_POWERDOWN);
+	}
+	if(panel->id == 1){
+		dsi_panel_notifier(MSM_DRM_SWITCH_EARLY_EVENT_BLANK,MSM_DRM_SLAVE_POWERDOWN);
+	}
+#endif
+#ifdef CONFIG_NUBIA_OLED_POWER
+	if (gpio_is_valid(panel->reset_config.disp_en_gpio))
+		gpio_set_value(panel->reset_config.disp_en_gpio, 0);
+	
+	if (gpio_is_valid(panel->reset_config.reset_gpio)) 
+		gpio_set_value(panel->reset_config.reset_gpio, 0);
+
+	if (gpio_is_valid(panel->reset_config.lcd_mode_sel_gpio))
+		gpio_set_value(panel->reset_config.lcd_mode_sel_gpio, 0);
+	
+	rc = dsi_panel_set_pinctrl_state(panel, false);
+	if (rc) {
+		pr_err("[%s] failed set pinctrl state, rc=%d\n", panel->name,
+		rc);
+	}
+	usleep_range(1000,1000);
+
+	if (gpio_is_valid(panel->reset_config.lcd_3p3_en_gpio))
+		gpio_set_value(panel->reset_config.lcd_3p3_en_gpio, 0);
+	usleep_range(1000,1000);
+
+	rc = dsi_pwr_enable_regulator(&panel->power_info, false);
+	if (rc)
+		pr_err("[%s] failed to enable vregs, rc=%d\n", panel->name, rc);
+#else
+
 	if (gpio_is_valid(panel->reset_config.disp_en_gpio))
 		gpio_set_value(panel->reset_config.disp_en_gpio, 0);
 
+	usleep_range(5000,5000);
 	if (gpio_is_valid(panel->reset_config.reset_gpio))
 		gpio_set_value(panel->reset_config.reset_gpio, 0);
 
+	usleep_range(5000,5000);
 	if (gpio_is_valid(panel->reset_config.lcd_mode_sel_gpio))
 		gpio_set_value(panel->reset_config.lcd_mode_sel_gpio, 0);
 
@@ -488,10 +659,42 @@ static int dsi_panel_power_off(struct dsi_panel *panel)
 		       rc);
 	}
 
+#ifdef CONFIG_NUBIA_SWITCH_LCD
+	if (!strcmp(panel->type, "primary")) {
+		usleep_range(5000,5000);
+
+		if (gpio_is_valid(panel->reset_config.front_panel_vci_3p3_gpio))
+			gpio_set_value(panel->reset_config.front_panel_vci_3p3_gpio, 0);
+
+		usleep_range(2000,2000);
+		pr_debug("[%s]front-panel-vci-3p3-gpio set low ok ! \n", panel->name);
+	} else {
+		usleep_range(1000,1000);
+
+		if (gpio_is_valid(panel->reset_config.back_panel_vci_3p3_gpio))
+			gpio_set_value(panel->reset_config.back_panel_vci_3p3_gpio, 0);
+
+		usleep_range(2000,2000);
+		if (gpio_is_valid(panel->reset_config.back_vddi_1p8_gpio))
+				gpio_set_value(panel->reset_config.back_vddi_1p8_gpio, 0);
+
+		pr_debug("[%s]back-vddi-1p8-gpio-gpio set low ok !\n", panel->name);
+	}
+#endif
+
 	rc = dsi_pwr_enable_regulator(&panel->power_info, false);
 	if (rc)
 		pr_err("[%s] failed to enable vregs, rc=%d\n", panel->name, rc);
 
+#endif
+#ifdef CONFIG_NUBIA_SWITCH_LCD
+	if(panel->id == 0){
+		dsi_panel_notifier(MSM_DRM_SWITCH_EVENT_BLANK,MSM_DRM_MAJOR_POWERDOWN);
+	}
+	if(panel->id == 1){
+		dsi_panel_notifier(MSM_DRM_SWITCH_EVENT_BLANK,MSM_DRM_SLAVE_POWERDOWN);
+	}
+#endif
 	return rc;
 }
 static int dsi_panel_tx_cmd_set(struct dsi_panel *panel,
@@ -616,14 +819,40 @@ static int dsi_panel_update_backlight(struct dsi_panel *panel,
 		return -EINVAL;
 	}
 
-	dsi = &panel->mipi_device;
+#ifdef CONFIG_NUBIA_SWITCH_LCD
+	if (panel->id == 0 && (panel->state & DSI0_AOD_STATE)) {
+		DRM_NUBIA_DEBUG("Primary panel on aod mode, prohibited set brightness!! panel->state = %d", panel->state);
+		return 1;
+	}
+#endif
 
+	dsi = &panel->mipi_device;
+#ifdef CONFIG_NUBIA_SWITCH_LCD
+	if(panel->id == 1){
+			if((bl_lvl>= 22)&& (bl_lvl<960)){
+			rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_SUB_LCD_GAMMA_LOW);
+			if (rc)
+				pr_err("[%s] failed to send DSI_CMD_SET_SUB_LCD_GAMMA_LOW cmds, rc=%d\n",
+				       panel->name, rc);
+			}
+			else if ((bl_lvl>= 960)&& (bl_lvl<4095)){
+			rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_SUB_LCD_GAMMA_HIGH);
+			if (rc)
+				pr_err("[%s] failed to send DSI_CMD_SET_SUB_LCD_GAMMA_HIGH cmds, rc=%d\n",
+				       panel->name, rc);
+			}
+	}
+#endif
 	rc = mipi_dsi_dcs_set_display_brightness(dsi, bl_lvl);
 	if (rc < 0)
 		pr_err("failed to update dcs backlight:%d\n", bl_lvl);
 
 	return rc;
 }
+
+#ifdef CONFIG_NUBIA_FPS_DYNAMIC
+int bl_lvl_tmp = 0;
+#endif
 
 int dsi_panel_set_backlight(struct dsi_panel *panel, u32 bl_lvl)
 {
@@ -633,7 +862,13 @@ int dsi_panel_set_backlight(struct dsi_panel *panel, u32 bl_lvl)
 	if (panel->host_config.ext_bridge_mode)
 		return 0;
 
-	pr_debug("backlight type:%d lvl:%d\n", bl->type, bl_lvl);
+	pr_debug("[%s]backlight type value:%d lvl:%d\n", panel->name, bl->type, bl_lvl);
+#ifdef CONFIG_NUBIA_FPS_DYNAMIC
+	if(((bl_lvl_tmp==0) && (bl_lvl != 0))||(bl_lvl == 7)){
+		dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_DIMMING_OFF);
+	}
+	bl_lvl_tmp = bl_lvl;
+#endif
 	switch (bl->type) {
 	case DSI_BACKLIGHT_WLED:
 		rc = backlight_device_set_brightness(bl->raw_bd, bl_lvl);
@@ -647,7 +882,6 @@ int dsi_panel_set_backlight(struct dsi_panel *panel, u32 bl_lvl)
 		pr_err("Backlight type(%d) not supported\n", bl->type);
 		rc = -ENOTSUPP;
 	}
-
 	return rc;
 }
 
@@ -1568,6 +1802,36 @@ const char *cmd_set_prop_map[DSI_CMD_SET_MAX] = {
 	"qcom,mdss-dsi-post-mode-switch-on-command",
 	"qcom,mdss-dsi-qsync-on-commands",
 	"qcom,mdss-dsi-qsync-off-commands",
+#ifdef CONFIG_NUBIA_LCD_DISP_PREFERENCE
+	"nubia,mdss-dsi-cabc-command-off",
+	"nubia,mdss-dsi-cabc-command-level1",
+	"nubia,mdss-dsi-cabc-command-level2",
+	"nubia,mdss-dsi-cabc-command-level3",
+#endif
+#ifdef CONFIG_NUBIA_SWITCH_LCD
+	"nubia,mdss-dsi-sub-lcd-command-aod-off",
+	"nubia,mdss-dsi-sub-lcd-command-aod-on",
+	"nubia,mdss-dsi-command-aod-b1",
+	"nubia,mdss-dsi-command-aod-b2",
+	"nubia,mdss-dsi-command-aod-b3",
+	"nubia,mdss-dsi-command-aod-b4",
+	"nubia,mdss-dsi-command-aod-b5",
+	"nubia,mdss-dsi-command-aod-b6",
+	"nubia,mdss-dsi-hbm-command-on",
+	"nubia,mdss-dsi-hbm-command-off",
+	"nubia,mdss-dsi-srgb-command-on",
+	"nubia,mdss-dsi-srgb-command-off",
+	"nubia,mdss-dsi-sub-lcd-command-gamma-low",
+	"nubia,mdss-dsi-sub-lcd-command-gamma-high",
+#endif
+#ifdef CONFIG_NUBIA_FPS_DYNAMIC
+	"qcom,mdss-dsi-on-command-90",
+	"qcom,mdss-dsi-on-command-60",
+	"qcom,mdss-dsi-on-command-fps-60",
+	"nubia,mdss-dsi-diming-off",
+	"nubia,mdss-dsi-bright-mode",
+	"nubia,mdss-dsi-standard-mode",
+#endif
 };
 
 const char *cmd_set_state_map[DSI_CMD_SET_MAX] = {
@@ -1594,6 +1858,36 @@ const char *cmd_set_state_map[DSI_CMD_SET_MAX] = {
 	"qcom,mdss-dsi-post-mode-switch-on-command-state",
 	"qcom,mdss-dsi-qsync-on-commands-state",
 	"qcom,mdss-dsi-qsync-off-commands-state",
+#ifdef CONFIG_NUBIA_LCD_DISP_PREFERENCE
+	"nubia,mdss-dsi-cabc-command-off-state",
+	"nubia,mdss-dsi-cabc-command-level1-state",
+	"nubia,mdss-dsi-cabc-command-level2-state",
+	"nubia,mdss-dsi-cabc-command-level3-state",
+#endif
+#ifdef CONFIG_NUBIA_SWITCH_LCD
+	"nubia,mdss-dsi-sub-lcd-command-aod-off-state",
+	"nubia,mdss-dsi-sub-lcd-command-aod-on-state",
+	"nubia,mdss-dsi-command-aod-b1-state",
+	"nubia,mdss-dsi-command-aod-b2-state",
+	"nubia,mdss-dsi-command-aod-b3-state",
+	"nubia,mdss-dsi-command-aod-b4-state",
+	"nubia,mdss-dsi-command-aod-b5-state",
+	"nubia,mdss-dsi-command-aod-b6-state",
+	"nubia,mdss-dsi-hbm-command-on-state",
+	"nubia,mdss-dsi-hbm-command-off-state",
+	"nubia,mdss-dsi-srgb-command-on-state",
+	"nubia,mdss-dsi-srgb-command-off-state",
+	"nubia,mdss-dsi-sub-lcd-command-gamma-low-state",
+	"nubia,mdss-dsi-sub-lcd-command-gamma-high-state",
+#endif
+#ifdef CONFIG_NUBIA_FPS_DYNAMIC
+	"qcom,mdss-dsi-on-command-90-state",
+	"qcom,mdss-dsi-on-command-60-state",
+	"qcom,mdss-dsi-on-command-fps-60-state",
+	"nubia,mdss-dsi-diming-off-state",
+	"nubia,mdss-dsi-bright-mode-state",
+	"nubia,mdss-dsi-standard-mode-state",
+#endif 
 };
 
 static int dsi_panel_get_cmd_pkt_count(const char *data, u32 length, u32 *cnt)
@@ -1985,6 +2279,79 @@ static int dsi_panel_parse_gpios(struct dsi_panel *panel)
 		pr_err("[%s] failed get reset gpio, rc=%d\n", panel->name, rc);
 		goto error;
 	}
+
+#ifdef CONFIG_NUBIA_OLED_POWER
+	panel->reset_config.lcd_3p3_en_gpio =utils->get_named_gpio(utils->data,
+						 "qcom,panel_3p3_en_gpio",
+						 0);
+	if (!gpio_is_valid(panel->reset_config.lcd_3p3_en_gpio) &&
+			!panel->host_config.ext_bridge_mode) {
+			rc = panel->reset_config.lcd_3p3_en_gpio;
+			pr_err("[%s] failed get lcd_3p3_en_gpio gpio, rc=%d\n", panel->name, rc);
+			goto error;
+	};
+#endif
+
+#ifdef CONFIG_NUBIA_SWITCH_LCD
+	if (!strcmp(panel->type, "primary")) {
+		panel->reset_config.front_panel_vci_3p3_gpio = utils->get_named_gpio(utils->data,
+							"qcom,front-panel-vci-3p3-gpio", 0);
+		if (!gpio_is_valid(panel->reset_config.front_panel_vci_3p3_gpio)) {
+			rc = panel->reset_config.front_panel_vci_3p3_gpio;
+			pr_err("[%s] failed get front-panel-vci-3p3-gpio gpio, rc=%d\n", panel->name, rc);
+			goto error;
+		}
+
+		panel->reset_config.front_panel_f_fd_gpio = utils->get_named_gpio(utils->data,
+							"qcom,front-panel-f-fd-gpio", 0);
+		if (!gpio_is_valid(panel->reset_config.front_panel_f_fd_gpio)) {
+			rc = panel->reset_config.front_panel_f_fd_gpio;
+			pr_err("[%s] failed get front_panel_f_fd_gpio gpio, rc=%d\n", panel->name, rc);
+			goto error;
+		}
+		//set front_panel_f_fd_gpio output
+		gpio_direction_output(panel->reset_config.front_panel_f_fd_gpio, 1);
+	} else {
+		panel->reset_config.back_panel_vci_3p3_gpio = utils->get_named_gpio(utils->data,
+							"qcom,back-panel-vci-3p3-gpio", 0);
+		if (!gpio_is_valid(panel->reset_config.back_panel_vci_3p3_gpio)) {
+			rc = panel->reset_config.back_panel_vci_3p3_gpio;
+			pr_err("[%s] failed get back-panel-vci-3p3-gpio gpio, rc=%d\n", panel->name, rc);
+			goto error;
+		}
+
+		rc = gpio_direction_output(panel->reset_config.back_panel_vci_3p3_gpio, 0);
+		if (rc) {
+			pr_err("unable to set dir for back-panel-vci-3p3-gpio, rc=%d\n", rc);
+			goto error;
+		}
+
+		/*********************  back_vddi_1p8_gpio *******************/
+		panel->reset_config.back_vddi_1p8_gpio = utils->get_named_gpio(utils->data,
+							     "qcom,back-vddi-1p8-gpio", 0);
+		if (!gpio_is_valid(panel->reset_config.back_vddi_1p8_gpio)) {
+			rc = panel->reset_config.back_vddi_1p8_gpio;
+			pr_err("[%s] failed get back_vddi_1p8_gpio gpio, rc=%d\n", panel->name, rc);
+			goto error;
+		}
+
+		rc = gpio_direction_output(panel->reset_config.back_vddi_1p8_gpio, 0);
+		if (rc) {
+			pr_err("unable to set dir for back_vddi_1p8_gpio, rc=%d\n", rc);
+			goto error;
+		}
+
+		panel->reset_config.back_panel_f_fd_gpio = utils->get_named_gpio(utils->data,
+							"qcom,back-panel-f-fd-gpio", 0);
+		if (!gpio_is_valid(panel->reset_config.back_panel_f_fd_gpio)) {
+			rc = panel->reset_config.back_panel_f_fd_gpio;
+			pr_err("[%s] failed get back_panel_f_fd_gpio gpio, rc=%d\n", panel->name, rc);
+			goto error;
+		}
+		//set back_panel_f_fd_gpio output
+		gpio_direction_output(panel->reset_config.back_panel_f_fd_gpio, 1);
+	}
+#endif
 
 	panel->reset_config.disp_en_gpio = utils->get_named_gpio(utils->data,
 						"qcom,5v-boost-gpio",
@@ -3007,7 +3374,7 @@ static int dsi_panel_parse_esd_config(struct dsi_panel *panel)
 		esd_mode = "te_check";
 	}
 
-	pr_info("ESD enabled with mode: %s\n", esd_mode);
+	pr_info("[%s]ESD enabled with mode: %s\n", panel->name, esd_mode);
 
 	return 0;
 
@@ -3015,6 +3382,63 @@ error:
 	panel->esd_config.esd_enabled = false;
 	return rc;
 }
+
+#ifdef CONFIG_NUBIA_LCD_DISP_PREFERENCE
+int nubia_dsi_panel_cabc(struct dsi_panel *panel, uint32_t cabc_modes)
+{
+	int rc = 0;
+
+	if (!panel) {
+		pr_err("invalid params\n");
+		return -EINVAL;
+	}
+
+	mutex_lock(&panel->panel_lock);
+
+	if(panel->panel_initialized == false){
+		pr_err("panel[%s] not ready\n", panel->name);
+		rc = -EINVAL;
+		goto exit;
+	}
+
+	pr_debug("[%s] set cabc %d", panel->name, cabc_modes);
+	switch(cabc_modes){
+		case CABC_OFF:
+			rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_CABC_OFF);
+			if (rc) {
+				pr_err("[%s] failed to send DSI_CMD_SET_CABC_OFF cmds, rc=%d\n",
+					panel->name, rc);
+			}
+			break;
+		case CABC_LEVEL1:
+			rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_CABC_LEVEL1);
+			if (rc) {
+				pr_err("[%s] failed to send DSI_CMD_SET_CABC_LEVEL1 cmds, rc=%d\n",
+					panel->name, rc);
+			}
+			break;
+		case CABC_LEVEL2:
+			rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_CABC_LEVEL2);
+			if (rc) {
+				pr_err("[%s] failed to send DSI_CMD_SET_CABC_LEVEL2 cmds, rc=%d\n",
+					panel->name, rc);
+			}
+			break;
+		case CABC_LEVEL3:
+			rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_CABC_LEVEL3);
+			if (rc) {
+				pr_err("[%s] failed to send DSI_CMD_SET_CABC_LEVEL3 cmds, rc=%d\n",
+					panel->name, rc);
+			}
+			break;
+		default:
+			break;
+	}
+exit:
+	mutex_unlock(&panel->panel_lock);
+	return rc;
+}
+#endif
 
 static void dsi_panel_update_util(struct dsi_panel *panel,
 				  struct device_node *parser_node)
@@ -3062,6 +3486,17 @@ struct dsi_panel *dsi_panel_get(struct device *parent,
 	if (!panel->name)
 		panel->name = DSI_PANEL_DEFAULT_LABEL;
 
+#ifdef CONFIG_NUBIA_SWITCH_LCD
+	panel->state = 0;
+	if (strstr(panel->name, g_dsi0_key)) {
+		panel->id = 0;
+	} else if (strstr(panel->name, g_dsi1_key)) {
+		panel->id = 1;
+	} else {
+		panel->id = -1;
+	}
+#endif
+
 	rc = dsi_panel_parse_host_config(panel);
 	if (rc) {
 		pr_err("failed to parse host configuration, rc=%d\n", rc);
@@ -3106,9 +3541,11 @@ struct dsi_panel *dsi_panel_get(struct device *parent,
 		pr_err("failed to parse power config, rc=%d\n", rc);
 
 	rc = dsi_panel_parse_bl_config(panel);
-	if (rc)
+	if (rc) {
 		pr_err("failed to parse backlight config, rc=%d\n", rc);
-
+		if (rc == -EPROBE_DEFER)
+			goto error;
+	}
 
 	rc = dsi_panel_parse_misc_features(panel);
 	if (rc)
@@ -3514,7 +3951,6 @@ int dsi_panel_pre_prepare(struct dsi_panel *panel)
 	/* If LP11_INIT is set, panel will be powered up during prepare() */
 	if (panel->lp11_init)
 		goto error;
-
 	rc = dsi_panel_power_on(panel);
 	if (rc) {
 		pr_err("[%s] panel power on failed, rc=%d\n", panel->name, rc);
@@ -3580,6 +4016,7 @@ int dsi_panel_set_lp1(struct dsi_panel *panel)
 	if (rc)
 		pr_err("[%s] failed to send DSI_CMD_SET_LP1 cmd, rc=%d\n",
 		       panel->name, rc);
+
 exit:
 	mutex_unlock(&panel->panel_lock);
 	return rc;
@@ -3602,6 +4039,7 @@ int dsi_panel_set_lp2(struct dsi_panel *panel)
 	if (rc)
 		pr_err("[%s] failed to send DSI_CMD_SET_LP2 cmd, rc=%d\n",
 		       panel->name, rc);
+
 exit:
 	mutex_unlock(&panel->panel_lock);
 	return rc;
@@ -3624,6 +4062,7 @@ int dsi_panel_set_nolp(struct dsi_panel *panel)
 	if (rc)
 		pr_err("[%s] failed to send DSI_CMD_SET_NOLP cmd, rc=%d\n",
 		       panel->name, rc);
+
 exit:
 	mutex_unlock(&panel->panel_lock);
 	return rc;
@@ -3660,6 +4099,326 @@ error:
 	mutex_unlock(&panel->panel_lock);
 	return rc;
 }
+
+#ifdef CONFIG_NUBIA_SWITCH_LCD
+int nubia_set_aod_brightness(struct dsi_panel *panel, uint32_t brightness)
+{
+	int rc = 0;
+
+	if (!panel) {
+		pr_err("invalid params\n");
+		return -EINVAL;
+	}
+
+	mutex_lock(&panel->panel_lock);
+
+	if(panel->panel_initialized == false){
+		pr_err("panel [%s] not ready\n", panel->name);
+		rc = -EINVAL;
+		goto exit;
+	}
+
+	switch(brightness){
+		case AOD_BRIGHTNESS_L1:
+			rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_AOD_BRIGHTNESS_L1);
+			if (rc) {
+				pr_err("[%s] failed to send AOD_BRIGHTNESS_L1 cmds, rc=%d\n",
+				       panel->name, rc);
+			}
+			pr_err("[%s] set brightness %d ok!\n", panel->name, brightness);
+			break;
+		case AOD_BRIGHTNESS_L2:
+			rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_AOD_BRIGHTNESS_L2);
+			if (rc) {
+				pr_err("[%s] failed to send AOD_BRIGHTNESS_L2 cmds, rc=%d\n",
+				       panel->name, rc);
+			}
+			pr_err("[%s] set brightness %d ok!\n", panel->name, brightness);
+			break;
+		case AOD_BRIGHTNESS_L3:
+			rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_AOD_BRIGHTNESS_L3);
+			if (rc) {
+				pr_err("[%s] failed to send AOD_BRIGHTNESS_L3 cmds, rc=%d\n",
+				       panel->name, rc);
+			}
+			pr_err("[%s] set brightness %d ok!\n", panel->name, brightness);
+			break;
+		case AOD_BRIGHTNESS_L4:
+			rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_AOD_BRIGHTNESS_L4);
+			if (rc) {
+				pr_err("[%s] failed to send AOD_BRIGHTNESS_L4 cmds, rc=%d\n",
+				       panel->name, rc);
+			}
+			pr_err("[%s] set brightness %d ok!\n", panel->name, brightness);
+			break;
+		case AOD_BRIGHTNESS_L5:
+			rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_AOD_BRIGHTNESS_L5);
+			if (rc) {
+				pr_err("[%s] failed to send AOD_BRIGHTNESS_L5 cmds, rc=%d\n",
+				       panel->name, rc);
+			}
+			pr_err("[%s] set brightness %d ok!\n", panel->name, brightness);
+			break;
+		case AOD_BRIGHTNESS_L6:
+			rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_AOD_BRIGHTNESS_L6);
+			if (rc) {
+				pr_err("[%s] failed to send AOD_BRIGHTNESS_L6 cmds, rc=%d\n",
+				       panel->name, rc);
+			}
+			pr_err("[%s] set brightness %d ok!\n", panel->name, brightness);
+			break;
+		default:
+			break;
+	}
+
+exit:
+	mutex_unlock(&panel->panel_lock);
+	return rc;
+}
+
+int nubia_dsi_panel_aod(struct dsi_panel *panel, uint32_t state)
+{
+	int rc = 0;
+
+	if (!panel) {
+		pr_err("invalid params\n");
+		return -EINVAL;
+	}
+
+	mutex_lock(&panel->panel_lock);
+
+	if(panel->panel_initialized == false){
+		pr_err("panel [%s] not ready\n", panel->name);
+		rc = -EINVAL;
+		goto exit;
+	}
+
+	switch(state){
+		case AOD_OFF:
+			rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_SUB_LCD_AOD_OFF);
+			if (rc) {
+				pr_err("[%s] failed to send DSI_CMD_SET_SUB_LCD_AOD_OFF cmds, rc=%d\n",
+				       panel->name, rc);
+			}
+			if (panel->id == DSI_PRIMARY_PANEL) {
+				if (gpio_is_valid(panel->reset_config.front_panel_f_fd_gpio))
+					gpio_set_value(panel->reset_config.front_panel_f_fd_gpio, 1);
+				pr_debug("[%s]front_panel_f_fd_gpio set hight ok ! \n", panel->name);
+			} else {
+				if (gpio_is_valid(panel->reset_config.back_panel_f_fd_gpio))
+					gpio_set_value(panel->reset_config.back_panel_f_fd_gpio, 1);
+				pr_debug("[%s]back_panel_f_fd_gpio set hight ok ! \n", panel->name);
+			}
+			break;
+		case AOD_ON:
+			rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_SUB_LCD_AOD_ON);
+			if (rc) {
+				pr_err("[%s] failed to send DSI_CMD_SET_SUB_LCD_AOD_ON cmds, rc=%d\n",
+				       panel->name, rc);
+			}
+			if (panel->id == DSI_PRIMARY_PANEL) {
+				if (gpio_is_valid(panel->reset_config.front_panel_f_fd_gpio))
+					gpio_set_value(panel->reset_config.front_panel_f_fd_gpio, 0);
+				pr_debug("[%s]front_panel_f_fd_gpio set low ok ! \n", panel->name);
+			} else {
+				if (gpio_is_valid(panel->reset_config.back_panel_f_fd_gpio))
+					gpio_set_value(panel->reset_config.back_panel_f_fd_gpio, 0);
+				pr_debug("[%s]back_panel_f_fd_gpio set hight ok ! \n", panel->name);
+			}
+			break;
+		default:
+			break;
+	}
+
+	if(state == AOD_OFF){
+		if (panel->id == DSI_PRIMARY_PANEL) {
+			panel->state &= ~DSI0_AOD_STATE;
+			panel->state |= DSI0_NORMAL_STATE;
+			dsi_panel_notifier(MSM_DRM_AOD_EVENT,MSM_DRM_MAJOR_AOD_OFF);
+		} else {
+			panel->state &= ~DSI1_AOD_STATE;
+			panel->state |= DSI1_NORMAL_STATE;
+			dsi_panel_notifier(MSM_DRM_AOD_EVENT,MSM_DRM_SLAVE_AOD_OFF);
+		}
+	} else if(state == AOD_ON){
+		if (panel->id == DSI_PRIMARY_PANEL) {
+			panel->state |= DSI0_AOD_STATE;
+			dsi_panel_notifier(MSM_DRM_AOD_EVENT,MSM_DRM_MAJOR_AOD_ON);
+		} else {
+			panel->state |= DSI1_AOD_STATE;
+			dsi_panel_notifier(MSM_DRM_AOD_EVENT,MSM_DRM_SLAVE_AOD_ON);
+		}
+	}
+
+exit:
+	mutex_unlock(&panel->panel_lock);
+	return rc;
+}
+
+int nubia_dsi_panel_hbm(struct dsi_panel *panel, uint32_t state)
+{
+	int rc = 0;
+
+	if (!panel) {
+		pr_err("invalid params\n");
+		return -EINVAL;
+	}
+
+	mutex_lock(&panel->panel_lock);
+
+	if(panel->panel_initialized == false){
+		pr_err("panel not ready\n");
+		rc = -EINVAL;
+		goto exit;
+	}
+
+	switch(state){
+		case HBM_OFF:
+			rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_HBM_OFF);
+			if (rc) {
+				pr_err("[%s] failed to send DSI_CMD_SET_HBM_OFF cmds, rc=%d\n",
+				       panel->name, rc);
+			}
+			break;
+		case HBM_ON:
+			rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_HBM_ON);
+			if (rc) {
+				pr_err("[%s] failed to send DSI_CMD_SET_HBM_ON cmds, rc=%d\n",
+				       panel->name, rc);
+			}
+			break;
+		default:
+			break;
+	}
+
+exit:
+	mutex_unlock(&panel->panel_lock);
+	return rc;
+}
+
+int nubia_dsi_panel_srgb(struct dsi_panel *panel, uint32_t state)
+{
+	int rc = 0;
+
+	if (!panel) {
+		pr_err("invalid params\n");
+		return -EINVAL;
+	}
+
+	mutex_lock(&panel->panel_lock);
+
+	if(panel->panel_initialized == false){
+		pr_err("panel not ready\n");
+		rc = -EINVAL;
+		goto exit;
+	}
+
+	switch(state){
+		case sRGB_OFF:
+			rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_SRGB_OFF);
+			if (rc) {
+				pr_err("[%s] failed to send sRGB_OFF cmds, rc=%d\n",
+				       panel->name, rc);
+			}
+			break;
+		case sRGB_ON:
+			rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_SRGB_ON);
+			if (rc) {
+				pr_err("[%s] failed to send sRGB_ON cmds, rc=%d\n",
+				       panel->name, rc);
+			}
+			break;
+		default:
+			break;
+	}
+
+exit:
+	mutex_unlock(&panel->panel_lock);
+	return rc;
+}
+#endif
+
+#ifdef CONFIG_NUBIA_FPS_DYNAMIC
+int nubia_dsi_panel_dynamic_fps(struct dsi_panel *panel, uint32_t fps_modes)
+{
+	int rc = 0;
+
+	if (!panel) {
+		pr_err("invalid params\n");
+		return -EINVAL;
+		}
+	mutex_lock(&panel->panel_lock);
+
+	if(panel->panel_initialized == false){
+			pr_err("panel not ready\n");
+			rc = -EINVAL;
+			goto exit;
+	}
+
+	switch(fps_modes){
+		case FPS_90:
+			rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_ON_90);
+			if (rc) {
+				pr_err("[%s] failed to send DSI_CMD_SET_ON cmds, rc=%d\n",
+									panel->name, rc);
+			}
+			break;
+		case FPS_60:
+			rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_ON_60);
+			if (rc) {
+				pr_err("[%s] failed to send DSI_CMD_SET_ON cmds, rc=%d\n",
+									panel->name, rc);
+			}
+			break;
+		default:
+			break;
+	}
+exit:
+		mutex_unlock(&panel->panel_lock);
+		return rc;
+}
+
+
+int nubia_dsi_panel_preference(struct dsi_panel *panel, uint32_t preference_mode)
+{
+	int rc = 0;
+
+	if (!panel) {
+		pr_err("invalid params\n");
+		return -EINVAL;
+		}
+	mutex_lock(&panel->panel_lock);
+
+	if(panel->panel_initialized == false){
+			pr_err("panel not ready\n");
+			rc = -EINVAL;
+			goto exit;
+	}
+
+	switch(preference_mode){
+		case MODE_BRIGHT:
+			rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_ON_BRIGHT);
+			if (rc) {
+				pr_err("[%s] failed to send DSI_CMD_SET_ON cmds, rc=%d\n",
+									panel->name, rc);
+			}
+			break;
+		case MODE_STANDARD:
+			rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_ON_STANDARD);
+			if (rc) {
+				pr_err("[%s] failed to send DSI_CMD_SET_ON cmds, rc=%d\n",
+									panel->name, rc);
+			}
+			break;
+		default:
+			break;
+	}
+exit:
+		mutex_unlock(&panel->panel_lock);
+		return rc;
+}
+
+#endif
 
 static int dsi_panel_roi_prepare_dcs_cmds(struct dsi_panel_cmd_set *set,
 		struct dsi_rect *roi, int ctrl_idx, int unicast)
@@ -3861,10 +4620,86 @@ int dsi_panel_post_switch(struct dsi_panel *panel)
 	return rc;
 }
 
+#ifdef CONFIG_NUBIA_DEBUG_LCD_REG
+extern ssize_t dsi_panel_transfer_cmd(struct mipi_dsi_host *host, const struct mipi_dsi_msg *msg);
+
+int dsi_panel_read_data(struct mipi_dsi_device *dsi, u8 cmd, void* buf, size_t len)
+{
+	int rc = 0;
+	struct mipi_dsi_msg msg = {
+		.channel = dsi->channel,
+		.type = MIPI_DSI_DCS_READ,
+		.tx_buf = &cmd,
+		.tx_len = 1,
+		.rx_buf = buf,
+		.rx_len = len
+	};
+	msg.flags |= MIPI_DSI_MSG_LASTCOMMAND | MIPI_DSI_MSG_USE_LPM;
+
+	if (dsi->mode_flags & MIPI_DSI_MODE_LPM)
+		msg.flags |= MIPI_DSI_MSG_USE_LPM;
+	msg.flags |= MIPI_DSI_MSG_LASTCOMMAND;
+
+	rc = dsi_panel_transfer_cmd(dsi->host, &msg);
+
+	return rc;
+}
+
+int dsi_panel_write_data(struct mipi_dsi_device *dsi, u8 cmd, void* buf, size_t len)
+{
+	int rc = 0;
+	rc = mipi_dsi_dcs_write(dsi, cmd, buf, len);
+	return rc;
+}
+#endif
+
+
+#if defined CONFIG_NUBIA_DEBUG_LCD_REG && defined CONFIG_NUBIA_OLED_CURRECT_OSC
+int dsi_panel_calibrate_osc(struct dsi_panel *panel)
+{
+	struct mipi_dsi_device *dsi;
+	int rc = 0;
+	u8 cmd1[1] = {0x04}, cmd3[1] = {0x80}, cmd4[1] = {0x00} ; // cmd2[1] = {0x69};
+	u8 osc[4] = {0x01, 0x00, 0x00, 0x00};
+	u8 osc_value = 0;
+	u8 *rx_buf = NULL;
+	//u32 i = 0;
+
+	/****
+	** before panel on, we must to check OSC and then to correct it
+	*****/
+	dsi = &panel->mipi_device;
+
+	rx_buf = (u8 *)kzalloc(110, GFP_KERNEL);
+	/**
+	** read source OSC
+	**/
+	rc = mipi_dsi_dcs_write(dsi, 0xB0, cmd1, sizeof(cmd1));
+	//rc = mipi_dsi_dcs_write(dsi, 0xF1, cmd2, sizeof(cmd2));
+	rc = dsi_panel_read_data(dsi, 0xE4, rx_buf, 107);
+
+	osc_value = ((rx_buf[105] & 0x01) << 5) | (rx_buf[106] & 0x1F);
+	osc[3] = osc_value;
+
+	//for(i=0; i<rc; i++)
+	//	printk(">>>>> %d = %x", i, rx_buf[i]);
+
+	/**
+	**   write OSC after currect the source value
+	***/
+	rc = mipi_dsi_dcs_write(dsi, 0xB0, cmd1, sizeof(cmd1));
+	rc = mipi_dsi_dcs_write(dsi, 0xE4, osc, sizeof(osc));
+	rc = mipi_dsi_dcs_write(dsi, 0xB0, cmd3, sizeof(cmd3));
+	rc = mipi_dsi_dcs_write(dsi, 0xE6, cmd4, sizeof(cmd4));
+	kfree(rx_buf);
+	return rc;
+}
+#endif
+
+
 int dsi_panel_enable(struct dsi_panel *panel)
 {
 	int rc = 0;
-
 	if (!panel) {
 		pr_err("Invalid params\n");
 		return -EINVAL;
@@ -3872,12 +4707,61 @@ int dsi_panel_enable(struct dsi_panel *panel)
 
 	mutex_lock(&panel->panel_lock);
 
+#if defined CONFIG_NUBIA_DEBUG_LCD_REG && defined CONFIG_NUBIA_OLED_CURRECT_OSC
+	dsi_panel_calibrate_osc(panel);
+#endif
+
+#ifdef CONFIG_NUBIA_FPS_DYNAMIC
+	if(fps_store==90){		
+		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_ON);
+		if (rc) {
+			pr_err("[%s] failed to send DSI_CMD_SET_ON cmds, rc=%d\n",
+			       panel->name, rc);
+	
+		}
+	}else if(fps_store==60){
+		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_ON_FPS_60);
+		if (rc) {
+			pr_err("[%s] failed to send DSI_CMD_SET_ON_FPS_60 cmds, rc=%d\n",
+			       panel->name, rc);
+		}
+	}else{
+		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_ON);
+		if (rc) {
+			pr_err("[%s] failed to send DSI_CMD_SET_ON cmds, rc=%d\n",
+			       panel->name, rc);
+			}
+	}
+	/*judge the mode setting*/	
+	if(mode_store == 0){
+		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_ON_BRIGHT);
+		if (rc) {
+			pr_err("[%s] failed to send DSI_CMD_SET_ON_BRIGHT cmds, rc=%d\n",
+			       panel->name, rc);
+		}
+	}else if(mode_store == 1){
+		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_ON_STANDARD);
+		if (rc) {
+			pr_err("[%s] failed to send DSI_CMD_SET_ON_BRIGHT cmds, rc=%d\n",
+			       panel->name, rc);
+		}
+	}else{
+		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_ON_BRIGHT);
+		if (rc) {
+			pr_err("[%s] failed to send DSI_CMD_SET_ON_BRIGHT cmds, rc=%d\n",
+			       panel->name, rc);
+		}
+	}
+		
+	//	rc = dsi_panel_update_backlight(panel, bl_lvl_tmp);
+#else
 	rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_ON);
-	if (rc)
+	if (rc) {
 		pr_err("[%s] failed to send DSI_CMD_SET_ON cmds, rc=%d\n",
 		       panel->name, rc);
-	else
-		panel->panel_initialized = true;
+	}
+#endif
+	panel->panel_initialized = true;
 	mutex_unlock(&panel->panel_lock);
 	return rc;
 }

@@ -1315,7 +1315,7 @@ int sde_rm_cont_splash_res_init(struct msm_drm_private *priv,
 		intf_sel = ctl->ops.get_ctl_intf(ctl);
 		if (intf_sel) {
 			splash_display =  &splash_data->splash_display[index];
-			SDE_DEBUG("finding resources for display=%d ctl=%d\n",
+			pr_err("finding resources for display=%d ctl=%d\n",
 					index, iter_c.blk->id - CTL_0);
 
 			_sde_rm_get_hw_blk_for_cont_splash(rm,
@@ -1338,8 +1338,14 @@ int sde_rm_cont_splash_res_init(struct msm_drm_private *priv,
 				break;
 		}
 	}
+	pr_err("active displays vs actually enabled :%d/%d",
+			splash_data->num_splash_displays, index);
 
-	if (index != splash_data->num_splash_displays) {
+	if (index != splash_data->num_splash_displays
+#ifdef CONFIG_NUBIA_SWITCH_LCD
+		&& (index == 0 || index > splash_data->num_splash_displays)
+#endif
+		) {
 		SDE_DEBUG("mismatch active displays vs actually enabled :%d/%d",
 				splash_data->num_splash_displays, index);
 		return -EINVAL;

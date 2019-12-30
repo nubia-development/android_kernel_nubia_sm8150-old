@@ -151,7 +151,6 @@ static int dsi_pwr_enable_vregs(struct dsi_regulator_info *regs, bool enable)
 					goto error_disable_opt_mode;
 				}
 			}
-
 			rc = regulator_enable(vreg->vreg);
 			if (rc) {
 				pr_err("enable failed for %s, rc=%d\n",

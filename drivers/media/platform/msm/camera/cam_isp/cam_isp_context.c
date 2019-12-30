@@ -113,14 +113,15 @@ static void __cam_isp_ctx_dump_state_monitor_array(
 	struct cam_isp_context_state_monitor   *ctx_monitor;
 
 	state_head = atomic64_read(&ctx_isp->state_monitor_head);
-
+       
+	// ZTEMT: fuyipeng modify for log
 	ctx_monitor = ctx_isp->cam_isp_ctx_state_monitor;
 
 	if (log_rate_limit)
 		CAM_INFO_RATE_LIMIT_CUSTOM(CAM_ISP, 5, 20,
 			"Dumping state information for preceding requests");
 	else
-		CAM_INFO(CAM_ISP,
+		CAM_DBG(CAM_ISP,
 			"Dumping state information for preceding requests");
 
 	for (i = CAM_ISP_CTX_STATE_MONITOR_MAX_ENTRIES - 1; i >= 0;
@@ -144,7 +145,8 @@ static void __cam_isp_ctx_dump_state_monitor_array(
 			ctx_monitor[index].hw_event));
 
 		} else {
-			CAM_INFO(CAM_ISP,
+		 // ZTEMT: fuyipeng modify for log
+			CAM_DBG(CAM_ISP,
 			"time[%lld] last reported req_id[%u] frame id[%lld] applied id[%lld] current state[%s] next state[%s] hw_event[%s]",
 			ctx_monitor[index].evt_time_stamp,
 			ctx_monitor[index].last_reported_id,
@@ -157,6 +159,7 @@ static void __cam_isp_ctx_dump_state_monitor_array(
 			__cam_isp_hw_evt_val_to_type(
 			ctx_monitor[index].hw_event));
 		}
+
 	}
 }
 

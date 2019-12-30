@@ -251,7 +251,8 @@ static int __cam_req_mgr_traverse(struct cam_req_mgr_traverse *traverse_data)
 		}
 	} else {
 		/* This pd table is not ready to proceed with asked idx */
-		CAM_INFO(CAM_CRM,
+		// ZTEMT: fuyipeng modify for the log
+		CAM_DBG(CAM_CRM,
 			"Skip Frame: req: %lld not ready pd: %d open_req count: %d",
 			CRM_GET_REQ_ID(traverse_data->in_q, curr_idx),
 			tbl->pd,

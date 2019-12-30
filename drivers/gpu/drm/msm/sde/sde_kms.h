@@ -123,7 +123,11 @@
 #define SDE_KMS_OPS_PREPARE_PLANE_FB		BIT(3)
 
 /* ESD status check interval in miliseconds */
+#ifndef CONFIG_NUBIA_SWITCH_LCD
 #define STATUS_CHECK_INTERVAL_MS 5000
+#else
+#define STATUS_CHECK_INTERVAL_MS 10000
+#endif
 
 /**
  * enum sde_kms_smmu_state:	smmu state
@@ -273,6 +277,9 @@ struct sde_kms {
 	struct mutex secure_transition_lock;
 
 	bool first_kickoff;
+#ifdef CONFIG_NUBIA_SWITCH_LCD
+	struct delayed_work splash_work;
+#endif	
 };
 
 struct vsync_info {
