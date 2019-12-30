@@ -19,6 +19,7 @@
 #include "cam_common_util.h"
 #include "cam_packet_util.h"
 
+extern bool is_eeprom_poweron; //nubia songliang add for CalibrationData
 
 static void cam_sensor_update_req_mgr(
 	struct cam_sensor_ctrl_t *s_ctrl,
@@ -734,6 +735,12 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 			s_ctrl->sensordata->slave_info.sensor_slave_addr,
 			s_ctrl->sensordata->slave_info.sensor_id);
 
+		/*ZTEMT: fengxun add for alloc_bug--------Start*/
+		if(0x586 == s_ctrl->sensordata->slave_info.sensor_id){
+			cam_sensor_alloc_buffer(2688);
+		}
+		/*ZTEMT: fengxun add for alloc_bug--------End*/
+
 		rc = cam_sensor_power_down(s_ctrl);
 		if (rc < 0) {
 			CAM_ERR(CAM_SENSOR, "fail in Sensor Power Down");
@@ -1119,6 +1126,7 @@ int cam_sensor_power_up(struct cam_sensor_ctrl_t *s_ctrl)
 	rc = camera_io_init(&(s_ctrl->io_master_info));
 	if (rc < 0)
 		CAM_ERR(CAM_SENSOR, "cci_init failed: rc: %d", rc);
+	is_eeprom_poweron = true;   //nubia songliang add for CalibrationData
 
 	return rc;
 }
@@ -1158,6 +1166,7 @@ int cam_sensor_power_down(struct cam_sensor_ctrl_t *s_ctrl)
 	}
 
 	camera_io_release(&(s_ctrl->io_master_info));
+	is_eeprom_poweron = false;    //nubia songliang add for CalibrationData
 
 	return rc;
 }
