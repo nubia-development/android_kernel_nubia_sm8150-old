@@ -780,3 +780,6 @@ CONFIG_MACH_NUBIA_NX627H=y
 # CONFIG_MACH_NUBIA_NX627J is not set
 # CONFIG_MACH_NUBIA_NX629J is not set
 # CONFIG_MACH_NUBIA_NX639J is not set
+
+# Nubia qcacld-3.0 -- Add by Cyborg2017(Yang Cyborg) [20191229]
+CONFIG_QCA_CLD_WLAN=y
