@@ -69,14 +69,14 @@
 
 		storage_cd: storage_cd {
 			mux {
-				pins = "gpio96";
-				function = "gpio";
+				//pins = "gpio96";
+				//function = "gpio";
 			};
 
 			config {
-				pins = "gpio96";
-				bias-pull-up;           /* pull up */
-				drive-strength = <2>;   /* 2 MA */
+				//pins = "gpio96";
+				//bias-pull-up;           /* pull up */
+				//drive-strength = <2>;   /* 2 MA */
 			};
 		};
 
@@ -293,15 +293,15 @@
 			};
 		};
 
-		pmx_ts_active {
-			ts_active: ts_active {
+		pmx_ts_int_active {
+			ts_int_active: ts_int_active {
 					mux {
-						pins = "gpio122", "gpio54";
+						pins = "gpio122";
 						function = "gpio";
 					};
 					config {
-						pins = "gpio122", "gpio54";
-						drive-strength = <8>;
+						pins = "gpio122";
+						drive-strength = <2>;
 						bias-pull-up;
 					};
 			};
@@ -3659,7 +3659,7 @@
 
 		fsa_usbc_ana_en_n@100 {
 			fsa_usbc_ana_en: fsa_usbc_ana_en {
-				mux {
+				/*mux {
 					pins = "gpio100";
 					function = "gpio";
 				};
@@ -3669,7 +3669,7 @@
 					drive-strength = <2>;
 					bias-disable;
 					output-low;
-				};
+				};*/
 			};
 		};
 
