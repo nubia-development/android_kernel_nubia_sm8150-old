@@ -76,7 +76,13 @@ endmenu
     bool "NUBIA_NX629J board"
     select MACH_NUBIA_SM8150
     help
-      Support for Nubia Red Magic 3 
+      Support for Nubia Red Magic 3
+
+ config MACH_NUBIA_NX629J_V1S
+    bool "NUBIA_NX629J_V1S board"
+    select MACH_NUBIA_SM8150
+    help
+      Support for Nubia Red Magic 3S
 
  config MACH_NUBIA_NX639J
     bool "NUBIA_NX639J board"
