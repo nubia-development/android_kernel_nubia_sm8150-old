@@ -52,6 +52,9 @@
 #include <asm/sysreg.h>
 #include <trace/events/exception.h>
 
+/* Save pt_regs ptr to get panic info for display in xbl mode */
+void *panic_info = NULL;
+
 static const char *handler[]= {
 	"Synchronous Abort",
 	"IRQ",
@@ -195,6 +198,10 @@ static int __die(const char *str, int err, struct pt_regs *regs)
 	static int die_counter;
 	int ret;
 
+	/* Save regs to display in xbl mode */
+	if (!panic_info)
+		panic_info = (void *)regs;
+
 	pr_emerg("Internal error: %s: %x [#%d]" S_PREEMPT S_SMP "\n",
 		 str, err, ++die_counter);
 
@@ -304,12 +311,10 @@ static int call_undef_hook(struct pt_regs *regs)
 	int (*fn)(struct pt_regs *regs, u32 instr) = NULL;
 	void __user *pc = (void __user *)instruction_pointer(regs);
 
-	if (!user_mode(regs)) {
-		__le32 instr_le;
-		if (probe_kernel_address((__force __le32 *)pc, instr_le))
-			goto exit;
-		instr = le32_to_cpu(instr_le);
-	} else if (compat_thumb_mode(regs)) {
+	if (!user_mode(regs))
+		return 1;
+
+	if (compat_thumb_mode(regs)) {
 		/* 16-bit Thumb instruction */
 		__le16 instr_le;
 		if (get_user(instr_le, (__le16 __user *)pc))
@@ -407,7 +412,6 @@ asmlinkage void __exception do_undefinstr(struct pt_regs *regs)
 	trace_undef_instr(regs, pc);
 
 	force_signal_inject(SIGILL, ILL_ILLOPC, regs, 0);
-	BUG_ON(!user_mode(regs));
 }
 
 void cpu_enable_cache_maint_trap(const struct arm64_cpu_capabilities *__unused)

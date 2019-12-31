@@ -310,7 +310,16 @@ static bool has_ssbd_mitigation(const struct arm64_cpu_capabilities *entry,
 
 	WARN_ON(scope != SCOPE_LOCAL_CPU || preemptible());
 
+	if (cpu_mitigations_off())
+		ssbd_state = ARM64_SSBD_FORCE_DISABLE;
+
+	/* delay setting __ssb_safe until we get a firmware response */
+	if (is_midr_in_range_list(read_cpuid_id(), entry->midr_range_list))
+		this_cpu_safe = true;
+
 	if (this_cpu_has_cap(ARM64_SSBS)) {
+		if (!this_cpu_safe)
+			__ssb_safe = false;
 		required = false;
 		goto out_printmsg;
 	}
@@ -391,17 +400,6 @@ static bool has_ssbd_mitigation(const struct arm64_cpu_capabilities *entry,
 
 	default:
 		WARN_ON(1);
-		break;
-	}
-
-out_printmsg:
-	switch (ssbd_state) {
-	case ARM64_SSBD_FORCE_DISABLE:
-		pr_info_once("%s disabled from command-line\n", entry->desc);
-		break;
-
-	case ARM64_SSBD_FORCE_ENABLE:
-		pr_info_once("%s forced from command-line\n", entry->desc);
 		break;
 	}
 
@@ -669,10 +667,6 @@ const struct arm64_cpu_capabilities arm64_errata[] = {
 		.capability = ARM64_WORKAROUND_REPEAT_TLBI,
 		ERRATA_MIDR_RANGE(MIDR_CORTEX_A76, 0, 0, 3, 0),
 	},
-	{
-		.capability = ARM64_WORKAROUND_REPEAT_TLBI,
-		ERRATA_MIDR_RANGE(MIDR_KRYO4G, 12, 14, 13, 14),
-	},
 #endif
 #ifdef CONFIG_ARM64_ERRATUM_858921
 	{
@@ -698,27 +692,8 @@ const struct arm64_cpu_capabilities arm64_errata[] = {
 		.type = ARM64_CPUCAP_LOCAL_CPU_ERRATUM,
 		.capability = ARM64_SSBD,
 		.matches = has_ssbd_mitigation,
+		.midr_range_list = arm64_ssb_cpus,
 	},
-#endif
-#ifdef CONFIG_ARM64_ERRATUM_1188873
-	{
-		.desc = "ARM erratum 1188873",
-		.capability = ARM64_WORKAROUND_1188873,
-		/* Cortex-A76 r0p0 to r2p0 */
-		MIDR_RANGE(MIDR_CORTEX_A76,
-			MIDR_CPU_VAR_REV(0, 0),
-			MIDR_CPU_VAR_REV(2, 0)),
-
-	},
-	{
-		.desc = "ARM erratum 1188873",
-		.capability = ARM64_WORKAROUND_1188873,
-		/* Kryo-4G r15p14 */
-		MIDR_RANGE(MIDR_KRYO4G,
-			MIDR_CPU_VAR_REV(15, 14),
-			MIDR_CPU_VAR_REV(15, 15)),
-	},
-#endif
 	{
 	}
 };
