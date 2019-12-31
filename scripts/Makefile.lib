@@ -194,6 +194,10 @@ else ifeq ($(CONFIG_MACH_NUBIA_NX629J),y)
 dtc_cpp_flags += -DNUBIA_OVERWRITE_DTSI_FILE=\"../nubia/NX629J/head.dtsi\"
 dtc_cpp_flags += -DNUBIA_AUDIO_OVERWRITE_DTSI_FILE=\"../nubia/NX629J/nubia-audio-lpass.dtsi\"
 dtc_cpp_flags += -DNUBIA_CAMERA_OVERWRITE_DTSI_FILE=\"../nubia/NX629J/camera.dtsi\"
+else ifeq ($(CONFIG_MACH_NUBIA_NX629J_V1S),y)
+dtc_cpp_flags += -DNUBIA_OVERWRITE_DTSI_FILE=\"../nubia/NX629J/head.dtsi\"
+dtc_cpp_flags += -DNUBIA_AUDIO_OVERWRITE_DTSI_FILE=\"../nubia/NX629J/nubia-audio-lpass.dtsi\"
+dtc_cpp_flags += -DNUBIA_CAMERA_OVERWRITE_DTSI_FILE=\"../nubia/NX629J/camera.dtsi\"
 else ifeq ($(CONFIG_MACH_NUBIA_NX639J),y)
 dtc_cpp_flags += -DNUBIA_OVERWRITE_DTSI_FILE=\"../nubia/NX639J/head.dtsi\"
 dtc_cpp_flags += -DNUBIA_AUDIO_OVERWRITE_DTSI_FILE=\"../nubia/NX639J/nubia-audio-lpass.dtsi\"
