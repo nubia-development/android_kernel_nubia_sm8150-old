@@ -760,6 +760,7 @@ static int __mmc_blk_ioctl_cmd(struct mmc_card *card, struct mmc_blk_data *md,
 
 	if (!card || !md || !idata)
 		return -EINVAL;
+    /*
 	 * need to target these explicitly. Else we just target the
 	 * partition type for the block device the ioctl() was issued
 	 * on.
