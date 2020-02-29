@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2011-2018 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2011-2020 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -52,6 +52,9 @@ uint8_t csr_wpa_oui[][CSR_WPA_OUI_SIZE] = {
 	,                       /* CCKM */
 #endif /* FEATURE_WLAN_ESE */
 };
+
+#define FT_PSK_IDX   4
+#define FT_8021X_IDX 3
 
 /*
  * PLEASE DO NOT ADD THE #IFDEF IN BELOW TABLE,
@@ -300,6 +303,7 @@ const char *get_e_roam_cmd_status_str(eRoamCmdStatus val)
 		CASE_RETURN_STR(eCSR_ROAM_NAPI_OFF);
 		CASE_RETURN_STR(eCSR_ROAM_CHANNEL_COMPLETE_IND);
 		CASE_RETURN_STR(eCSR_ROAM_SAE_COMPUTE);
+		CASE_RETURN_STR(eCSR_ROAM_FIPS_PMK_REQUEST);
 	default:
 		return "unknown";
 	}
@@ -3431,6 +3435,7 @@ static void csr_check_sae_auth(tpAniSirGlobal mac_ctx,
  * @negotiated_mccipher: negotiated multicast cipher
  * @gp_mgmt_cipher: group management cipher
  * @mgmt_encryption_type: group management encryption type
+ * @adaptive_11r: is adaptive 11r connection
  *
  * This routine will get all RSN information
  *
@@ -3446,7 +3451,8 @@ static bool csr_get_rsn_information(tpAniSirGlobal mac_ctx,
 				    eCsrAuthType *negotiated_authtype,
 				    eCsrEncryptionType *negotiated_mccipher,
 				    uint8_t *gp_mgmt_cipher,
-				    tAniEdType *mgmt_encryption_type)
+				    tAniEdType *mgmt_encryption_type,
+				    bool adaptive_11r)
 {
 	bool acceptable_cipher = false;
 	bool group_mgmt_acceptable_cipher = false;
@@ -3566,29 +3572,78 @@ static bool csr_get_rsn_information(tpAniSirGlobal mac_ctx,
 				neg_authtype = eCSR_AUTH_TYPE_CCKM_RSN;
 		}
 #endif
-		if ((neg_authtype == eCSR_AUTH_TYPE_UNKNOWN)
-				&& csr_is_auth_rsn(mac_ctx, authsuites,
-					c_auth_suites, authentication)) {
+		if (neg_authtype == eCSR_AUTH_TYPE_UNKNOWN &&
+		    csr_is_auth_rsn(mac_ctx, authsuites,
+				    c_auth_suites, authentication)) {
+			/*
+			 * For adaptive 11r connection send FT-802.1X akm in
+			 * association request
+			 */
+			if (adaptive_11r &&
+			    eCSR_AUTH_TYPE_FT_RSN == auth_type->authType[i]) {
+				neg_authtype = eCSR_AUTH_TYPE_FT_RSN;
+				qdf_mem_copy(authentication,
+					     csr_rsn_oui[FT_8021X_IDX],
+					     CSR_WPA_OUI_SIZE);
+			}
+
 			if (eCSR_AUTH_TYPE_RSN == auth_type->authType[i])
 				neg_authtype = eCSR_AUTH_TYPE_RSN;
 		}
-		if ((neg_authtype == eCSR_AUTH_TYPE_UNKNOWN)
-				&& csr_is_auth_rsn_psk(mac_ctx, authsuites,
+		if (neg_authtype == eCSR_AUTH_TYPE_UNKNOWN &&
+		    csr_is_auth_rsn_psk(mac_ctx, authsuites,
 					c_auth_suites, authentication)) {
+			/*
+			 * For adaptive 11r connection send FT-PSK akm in
+			 * association request
+			 */
+			if (adaptive_11r &&
+			    eCSR_AUTH_TYPE_FT_RSN_PSK == auth_type->authType[i]) {
+				neg_authtype = eCSR_AUTH_TYPE_FT_RSN_PSK;
+				qdf_mem_copy(authentication,
+					     csr_rsn_oui[FT_PSK_IDX],
+					     CSR_WPA_OUI_SIZE);
+			}
+
 			if (eCSR_AUTH_TYPE_RSN_PSK == auth_type->authType[i])
 				neg_authtype = eCSR_AUTH_TYPE_RSN_PSK;
 		}
 #ifdef WLAN_FEATURE_11W
-		if ((neg_authtype == eCSR_AUTH_TYPE_UNKNOWN)
-			&& csr_is_auth_rsn_psk_sha256(mac_ctx, authsuites,
-					c_auth_suites, authentication)) {
+		if (neg_authtype == eCSR_AUTH_TYPE_UNKNOWN &&
+		    csr_is_auth_rsn_psk_sha256(mac_ctx, authsuites,
+					       c_auth_suites, authentication)) {
+			/*
+			 * For adaptive 11r connection send AP advertises only
+			 * PSK AKM. STA can choose FT-PSK akm in association
+			 * request if FT capable.
+			 */
+			if (adaptive_11r &&
+			    eCSR_AUTH_TYPE_FT_RSN_PSK == auth_type->authType[i]) {
+				neg_authtype = eCSR_AUTH_TYPE_FT_RSN_PSK;
+				qdf_mem_copy(authentication,
+					     csr_rsn_oui[FT_PSK_IDX],
+					     CSR_WPA_OUI_SIZE);
+			}
+
 			if (eCSR_AUTH_TYPE_RSN_PSK_SHA256 ==
 					auth_type->authType[i])
 				neg_authtype = eCSR_AUTH_TYPE_RSN_PSK_SHA256;
 		}
 		if ((neg_authtype == eCSR_AUTH_TYPE_UNKNOWN) &&
-				csr_is_auth_rsn8021x_sha256(mac_ctx, authsuites,
-					c_auth_suites, authentication)) {
+		    csr_is_auth_rsn8021x_sha256(mac_ctx,
+						authsuites, c_auth_suites,
+						authentication)) {
+			/*
+			 * For adaptive 11r connection send FT-802.1x akm in
+			 * association request
+			 */
+			if (adaptive_11r &&
+			    eCSR_AUTH_TYPE_FT_RSN == auth_type->authType[i]) {
+				neg_authtype = eCSR_AUTH_TYPE_FT_RSN;
+				qdf_mem_copy(authentication,
+					     csr_rsn_oui[FT_8021X_IDX],
+					     CSR_WPA_OUI_SIZE);
+			}
 			if (eCSR_AUTH_TYPE_RSN_8021X_SHA256 ==
 					auth_type->authType[i])
 				neg_authtype = eCSR_AUTH_TYPE_RSN_8021X_SHA256;
@@ -3773,10 +3828,10 @@ static bool csr_is_rsn_match(tpAniSirGlobal mac_ctx, tCsrAuthList *pAuthType,
 	 * settings in the profile.
 	 */
 	fRSNMatch = csr_get_rsn_information(mac_ctx, pAuthType, enType,
-					pEnMcType, &pIes->RSN,
-					NULL, NULL, NULL, NULL,
-					pNegotiatedAuthType,
-					pNegotiatedMCCipher, NULL, NULL);
+					    pEnMcType, &pIes->RSN, NULL, NULL,
+					    NULL, NULL, pNegotiatedAuthType,
+					    pNegotiatedMCCipher, NULL, NULL,
+					    false);
 #ifdef WLAN_FEATURE_11W
 	/* If all the filter matches then finally checks for PMF capabilities */
 	if (fRSNMatch)
@@ -4065,7 +4120,8 @@ uint8_t csr_construct_rsn_ie(tpAniSirGlobal pMac, uint32_t sessionId,
 					MulticastCypher, AuthSuite,
 					&RSNCapabilities, &negAuthType, NULL,
 					gp_mgmt_cipher_suite,
-					&pProfile->mgmt_encryption_type);
+					&pProfile->mgmt_encryption_type,
+					session->is_adaptive_11r_connection);
 		if (!fRSNMatch)
 			break;
 

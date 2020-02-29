@@ -919,6 +919,9 @@ sap_validate_chan(struct sap_context *sap_context,
 					"%s: Override ch %d to %d due to CC Intf",
 					__func__, sap_context->channel, con_ch);
 				sap_context->channel = con_ch;
+				if (WLAN_REG_IS_24GHZ_CH(con_ch))
+					sap_context->ch_params.ch_width =
+							CH_WIDTH_20MHZ;
 				wlan_reg_set_channel_params(mac_ctx->pdev,
 						sap_context->channel, 0,
 						&sap_context->ch_params);
@@ -985,6 +988,9 @@ sap_validate_chan(struct sap_context *sap_context,
 					"%s: Override ch %d to %d due to CC Intf",
 					__func__, sap_context->channel, con_ch);
 				sap_context->channel = con_ch;
+				if (WLAN_REG_IS_24GHZ_CH(con_ch))
+					sap_context->ch_params.ch_width =
+							CH_WIDTH_20MHZ;
 				wlan_reg_set_channel_params(mac_ctx->pdev,
 						sap_context->channel, 0,
 						&sap_context->ch_params);
@@ -2015,6 +2021,7 @@ static QDF_STATUS sap_cac_end_notify(tHalHandle hHal,
 	uint8_t intf;
 	tpAniSirGlobal pMac = PMAC_STRUCT(hHal);
 	QDF_STATUS qdf_status = QDF_STATUS_E_FAILURE;
+	uint8_t chan;
 
 	/*
 	 * eSAP_DFS_CHANNEL_CAC_END:
@@ -2036,8 +2043,8 @@ static QDF_STATUS sap_cac_end_notify(tHalHandle hHal,
 			sap_context = pMac->sap.sapCtxList[intf].sap_context;
 			/* Don't check CAC for non-dfs channel */
 			profile = &sap_context->csr_roamProfile;
-			if (!wlan_reg_is_dfs_ch(pMac->pdev,
-						profile->operationChannel))
+			chan = profile->operationChannel;
+			if (!wlan_reg_chan_has_dfs_attribute(pMac->pdev, chan))
 				continue;
 
 			/* If this is an end notification of a pre cac, the

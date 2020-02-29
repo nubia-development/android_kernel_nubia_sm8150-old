@@ -48,6 +48,7 @@
 #include "lim_ibss_peer_mgmt.h"
 #include "lim_ft_defs.h"
 #include "lim_session.h"
+#include "lim_process_fils.h"
 
 #include "qdf_types.h"
 #include "wma_types.h"
@@ -2545,6 +2546,20 @@ lim_add_sta(tpAniSirGlobal mac_ctx,
 			add_sta_params->stbc_capable = 0;
 	}
 
+	if (session_entry->pePersona == QDF_SAP_MODE ||
+	    session_entry->pePersona == QDF_P2P_GO_MODE) {
+		if (session_entry->parsedAssocReq) {
+			uint16_t aid = sta_ds->assocId;
+			/* Get a copy of the already parsed Assoc Request */
+			assoc_req =
+			(tpSirAssocReq) session_entry->parsedAssocReq[aid];
+
+			add_sta_params->wpa_rsn = assoc_req->rsnPresent;
+			add_sta_params->wpa_rsn |=
+				(assoc_req->wpaPresent << 1);
+		}
+	}
+
 	lim_update_he_stbc_capable(add_sta_params);
 
 	msg_q.type = WMA_ADD_STA_REQ;
@@ -2942,6 +2957,9 @@ lim_add_sta_self(tpAniSirGlobal pMac, uint16_t staIdx, uint8_t updateSta,
 
 	if (IS_DOT11_MODE_HE(selfStaDot11Mode))
 		lim_add_self_he_cap(pAddStaParams, psessionEntry);
+
+	if (lim_is_fils_connection(psessionEntry))
+		pAddStaParams->no_ptk_4_way = true;
 
 	msgQ.type = WMA_ADD_STA_REQ;
 	msgQ.reserved = 0;
@@ -4125,6 +4143,9 @@ QDF_STATUS lim_sta_send_add_bss(tpAniSirGlobal pMac, tpSirAssocRsp pAssocRsp,
 	}
 	lim_set_sta_ctx_twt(&pAddBssParams->staContext, psessionEntry);
 
+	if (lim_is_fils_connection(psessionEntry))
+		pAddBssParams->no_ptk_4_way = true;
+
 	msgQ.type = WMA_ADD_BSS_REQ;
 	/** @ToDo : Update the Global counter to keeptrack of the PE <--> HAL messages*/
 	msgQ.reserved = 0;
@@ -4608,6 +4629,9 @@ QDF_STATUS lim_sta_send_add_bss_pre_assoc(tpAniSirGlobal pMac, uint8_t updateEnt
 		pAddBssParams->ch_width = CH_WIDTH_10MHZ;
 		pAddBssParams->staContext.ch_width = CH_WIDTH_10MHZ;
 	}
+
+	if (lim_is_fils_connection(psessionEntry))
+		pAddBssParams->no_ptk_4_way = true;
 
 	msgQ.type = WMA_ADD_BSS_REQ;
 	/** @ToDo : Update the Global counter to keeptrack of the PE <--> HAL messages*/
