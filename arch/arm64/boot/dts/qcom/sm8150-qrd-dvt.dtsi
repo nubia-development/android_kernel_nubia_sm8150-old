@@ -10,7 +10,7 @@
  * GNU General Public License for more details.
  */
 
-#include "sm8150-qrd.dtsi"
+#include NUBIA_OVERWRITE_SM8150_QRD_DTSI
 
 &usb_qmp_dp_phy {
 	vdd-supply = <&pm8150_l18>;

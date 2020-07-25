@@ -13,7 +13,7 @@
 /dts-v1/;
 /memreserve/ 0x90000000 0x00000100;
 
-#include "sm8150.dtsi"
+#include NUBIA_OVERWRITE_SM8150_DTSI
 #include "sm8150-rumi.dtsi"
 
 / {

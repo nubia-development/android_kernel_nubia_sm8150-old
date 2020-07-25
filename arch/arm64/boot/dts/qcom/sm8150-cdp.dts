@@ -12,7 +12,7 @@
 
 /dts-v1/;
 
-#include "sm8150.dtsi"
+#include NUBIA_OVERWRITE_SM8150_DTSI
 #include "sm8150-cdp.dtsi"
 
 / {

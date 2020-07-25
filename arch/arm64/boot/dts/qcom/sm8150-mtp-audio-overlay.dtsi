@@ -11,7 +11,7 @@
  * GNU General Public License for more details.
  */
 
-#include "sm8150-audio-overlay.dtsi"
+#include NUBIA_OVERWRITE_SM8150_AUDIO_OVERLAY_DTSI
 
 &snd_9360 {
 	qcom,wsa-max-devs = <1>;

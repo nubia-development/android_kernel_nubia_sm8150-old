@@ -10,7 +10,7 @@
  * GNU General Public License for more details.
  */
 
-#include "msm-audio-lpass.dtsi"
+#include NUBIA_OVERWRITE_AUDIO_LPASS_DTSI
 #include "sm8150-sde-display.dtsi"
 
 &soc {
