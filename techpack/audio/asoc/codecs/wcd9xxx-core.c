@@ -1600,7 +1600,7 @@ static const struct slim_device_id wcd_slim_device_id[] = {
 	{"tomtom-slim-pgd", WCD9330},
 	{"tasha-slim-pgd", WCD9335},
 	{"tavil-slim-pgd", WCD934X},
-	{"pahu-slim-pgd", WCD9360},
+	//{"pahu-slim-pgd", WCD9360},
 	{}
 };
 

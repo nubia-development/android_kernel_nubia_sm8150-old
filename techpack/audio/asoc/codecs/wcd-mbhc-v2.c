@@ -9,6 +9,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  */
+#define DEBUG
 #include <linux/module.h>
 #include <linux/init.h>
 #include <linux/slab.h>
@@ -129,13 +130,15 @@ void wcd_enable_curr_micbias(const struct wcd_mbhc *mbhc,
 	pr_debug("%s: enter, cs_mb_en: %d\n", __func__, cs_mb_en);
 
 	switch (cs_mb_en) {
-	case WCD_MBHC_EN_CS:
-		WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_MICB_CTRL, 0);
-		WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_BTN_ISRC_CTL, 3);
+	//case WCD_MBHC_EN_CS:
+		//WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_MICB_CTRL, 0);
+		//WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_BTN_ISRC_CTL, 3);
 		/* Program Button threshold registers as per CS */
-		wcd_program_btn_threshold(mbhc, false);
-		break;
+		//wcd_program_btn_threshold(mbhc, false);
+		//break;
+	case WCD_MBHC_EN_CS:
 	case WCD_MBHC_EN_MB:
+	case WCD_MBHC_EN_PULLUP:
 		WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_BTN_ISRC_CTL, 0);
 		WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_FSM_EN, 1);
 
@@ -144,13 +147,13 @@ void wcd_enable_curr_micbias(const struct wcd_mbhc *mbhc,
 		/* Program Button threshold registers as per MICBIAS */
 		wcd_program_btn_threshold(mbhc, true);
 		break;
-	case WCD_MBHC_EN_PULLUP:
-		WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_BTN_ISRC_CTL, 3);
-		WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_FSM_EN, 1);
-		WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_MICB_CTRL, 1);
-		/* Program Button threshold registers as per MICBIAS */
-		wcd_program_btn_threshold(mbhc, true);
-		break;
+	//case WCD_MBHC_EN_PULLUP:
+	//	WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_BTN_ISRC_CTL, 3);
+	//	WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_FSM_EN, 1);
+	//	WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_MICB_CTRL, 1);
+	//	/* Program Button threshold registers as per MICBIAS */
+	//	wcd_program_btn_threshold(mbhc, true);
+	//	break;
 	case WCD_MBHC_EN_NONE:
 		WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_BTN_ISRC_CTL, 0);
 		WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_FSM_EN, 1);
@@ -1389,8 +1392,13 @@ static int wcd_mbhc_initialise(struct wcd_mbhc *mbhc)
 		WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_INSREM_DBNC, 6);
 	}
 
+#ifdef CONFIG_ZTEMT_AUDIO
+	/* Button Debounce set to 32ms */
+	WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_BTN_DBNC, 3);
+#else
 	/* Button Debounce set to 16ms */
 	WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_BTN_DBNC, 2);
+#endif
 
 	/* Enable micbias ramp */
 	if (mbhc->mbhc_cb->mbhc_micb_ramp_control)
