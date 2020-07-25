@@ -64,6 +64,3 @@
 	qcom,string-cfg = <6>;
 	qcom,leds-per-string = <8>;
 };
-
-#include NUBIA_OVERWRITE_DTSI_FILE
-
