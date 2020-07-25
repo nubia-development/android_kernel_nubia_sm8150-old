@@ -180,24 +180,34 @@ dtc_cpp_flags  = -Wp,-MD,$(depfile).pre.tmp -nostdinc                    \
 		 $(addprefix -I,$(DTC_INCLUDE))                          \
 		 -undef -D__DTS__
 
+ifeq ($(CONFIG_MACH_NUBIA_SM8150),y)
+ifneq ($(CONFIG_MACH_NUBIA_TP1803),y)
+dtc_cpp_flags += -DNUBIA_OVERWRITE_SM8150_DTSI=\"nubia/sm8150_others/sm8150.dtsi\"
+dtc_cpp_flags += -DNUBIA_OVERWRITE_SM8150_MTP_DTSI=\"nubia/sm8150_others/sm8150-mtp.dtsi\"
+dtc_cpp_flags += -DNUBIA_OVERWRITE_SM8150_AUDIO_OVERLAY_DTSI=\"nubia/sm8150_others/sm8150-audio-overlay.dtsi\"
+dtc_cpp_flags += -DNUBIA_OVERWRITE_AUDIO_LPASS_DTSI=\"nubia/sm8150_others/msm-audio-lpass.dtsi\"
+dtc_cpp_flags += -DNUBIA_OVERWRITE_SM8150_QRD_DTSI=\"nubia/sm8150_others/sm8150-qrd.dtsi\"
+endif
+endif
+
 ifeq ($(CONFIG_MACH_NUBIA_NX627H),y)
 #nubia: Set nubia overwrite dtsi file
-dtc_cpp_flags += -DNUBIA_OVERWRITE_DTSI_FILE=\"../nubia/NX627H/head.dtsi\"
-dtc_cpp_flags += -DNUBIA_AUDIO_OVERWRITE_DTSI_FILE=\"../nubia/NX627H/nubia-audio-lpass.dtsi\"
-dtc_cpp_flags += -DNUBIA_CAMERA_OVERWRITE_DTSI_FILE=\"../nubia/NX627H/camera.dtsi\"
+dtc_cpp_flags += -DNUBIA_OVERWRITE_DTSI_FILE=\"../../../nubia/NX627H/head.dtsi\"
+dtc_cpp_flags += -DNUBIA_AUDIO_OVERWRITE_DTSI_FILE=\"../../../nubia/NX627H/nubia-audio-lpass.dtsi\"
+dtc_cpp_flags += -DNUBIA_CAMERA_OVERWRITE_DTSI_FILE=\"../../../nubia/NX627H/camera.dtsi\"
 else ifeq ($(CONFIG_MACH_NUBIA_NX627J),y)
 #nubia: Set nubia overwrite dtsi file
-dtc_cpp_flags += -DNUBIA_OVERWRITE_DTSI_FILE=\"../nubia/NX627J/head.dtsi\"
-dtc_cpp_flags += -DNUBIA_AUDIO_OVERWRITE_DTSI_FILE=\"../nubia/NX627J/nubia-audio-lpass.dtsi\"
-dtc_cpp_flags += -DNUBIA_CAMERA_OVERWRITE_DTSI_FILE=\"../nubia/NX627J/camera.dtsi\"
+dtc_cpp_flags += -DNUBIA_OVERWRITE_DTSI_FILE=\"../../../nubia/NX627J/head.dtsi\"
+dtc_cpp_flags += -DNUBIA_AUDIO_OVERWRITE_DTSI_FILE=\"../../../nubia/NX627J/nubia-audio-lpass.dtsi\"
+dtc_cpp_flags += -DNUBIA_CAMERA_OVERWRITE_DTSI_FILE=\"../../../nubia/NX627J/camera.dtsi\"
 else ifeq ($(CONFIG_MACH_NUBIA_NX629J),y)
-dtc_cpp_flags += -DNUBIA_OVERWRITE_DTSI_FILE=\"../nubia/NX629J/head.dtsi\"
-dtc_cpp_flags += -DNUBIA_AUDIO_OVERWRITE_DTSI_FILE=\"../nubia/NX629J/nubia-audio-lpass.dtsi\"
-dtc_cpp_flags += -DNUBIA_CAMERA_OVERWRITE_DTSI_FILE=\"../nubia/NX629J/camera.dtsi\"
+dtc_cpp_flags += -DNUBIA_OVERWRITE_DTSI_FILE=\"../../../nubia/NX629J/head.dtsi\"
+dtc_cpp_flags += -DNUBIA_AUDIO_OVERWRITE_DTSI_FILE=\"../../../nubia/NX629J/nubia-audio-lpass.dtsi\"
+dtc_cpp_flags += -DNUBIA_CAMERA_OVERWRITE_DTSI_FILE=\"../../../nubia/NX629J/camera.dtsi\"
 else ifeq ($(CONFIG_MACH_NUBIA_NX639J),y)
-dtc_cpp_flags += -DNUBIA_OVERWRITE_DTSI_FILE=\"../nubia/NX639J/head.dtsi\"
-dtc_cpp_flags += -DNUBIA_AUDIO_OVERWRITE_DTSI_FILE=\"../nubia/NX639J/nubia-audio-lpass.dtsi\"
-dtc_cpp_flags += -DNUBIA_CAMERA_OVERWRITE_DTSI_FILE=\"../nubia/NX639J/camera.dtsi\"
+dtc_cpp_flags += -DNUBIA_OVERWRITE_DTSI_FILE=\"../../../nubia/NX639J/head.dtsi\"
+dtc_cpp_flags += -DNUBIA_AUDIO_OVERWRITE_DTSI_FILE=\"../../../nubia/NX639J/nubia-audio-lpass.dtsi\"
+dtc_cpp_flags += -DNUBIA_CAMERA_OVERWRITE_DTSI_FILE=\"../../../nubia/NX639J/camera.dtsi\"
 endif
 
 # Finds the multi-part object the current object will be linked into
